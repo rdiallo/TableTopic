@@ -63,73 +63,73 @@
 <body class="bg-[#091424] text-slate-100 h-screen max-h-screen flex flex-col font-['Plus_Jakarta_Sans',sans-serif] overflow-hidden select-none">
 
   <!-- ================= TOP NAVIGATION BAR ================= -->
-  <header class="h-16 md:h-18 flex-none border-b border-slate-800 bg-[#06101c] px-4 md:px-8 flex items-center justify-between z-30 shadow-md">
+  <header class="h-14 md:h-16 flex-none border-b border-slate-800 bg-[#06101c] px-3 md:px-6 flex items-center justify-between z-30 shadow-md">
     <!-- Left: Club info & Theme -->
-    <div class="flex items-center gap-3 md:gap-4">
-      <div class="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-lg">
-        <i class="fa-solid fa-microphone-lines text-lg md:text-xl"></i>
+    <div class="flex items-center gap-2.5 md:gap-3.5 min-w-0">
+      <div class="w-8 h-8 md:w-9 md:h-9 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow flex-shrink-0">
+        <i class="fa-solid fa-microphone-lines text-sm md:text-base"></i>
       </div>
-      <div class="flex items-center gap-2 md:gap-3">
-        <span class="text-sm md:text-base uppercase tracking-widest font-black text-amber-400 hidden sm:inline">Toastmasters</span>
-        <span class="text-slate-600 hidden sm:inline text-lg">•</span>
-        <span class="text-xs md:text-sm font-bold bg-rose-950/80 text-rose-300 border border-rose-800/60 px-2.5 py-1 rounded-lg hidden md:inline">Meneur d'impro</span>
-        <h1 class="text-base md:text-xl font-black text-white tracking-tight truncate ml-1">
-          Thème : <span id="header-theme-display" class="text-sky-300 font-bold">« Pratiquer la prise de parole »</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-xs md:text-sm uppercase tracking-wider font-black text-amber-400 hidden sm:inline flex-shrink-0">Toastmasters</span>
+        <span class="text-slate-600 hidden sm:inline text-sm flex-shrink-0">•</span>
+        <span class="text-[11px] md:text-xs font-bold bg-rose-950/80 text-rose-300 border border-rose-800/60 px-2 py-0.5 rounded-md hidden lg:inline flex-shrink-0" id="badge-role-display">Table Topics</span>
+        <h1 class="text-xs md:text-sm lg:text-base font-bold text-white tracking-tight truncate ml-0.5">
+          <span class="text-slate-400 hidden xl:inline">Thème : </span><span id="header-theme-display" class="text-sky-300 font-semibold truncate">« Practicing Public Speaking »</span>
         </h1>
       </div>
     </div>
 
     <!-- Right Controls -->
-    <div class="flex items-center gap-2 md:gap-3">
+    <div class="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
       <!-- Language Switcher (EN / FR) -->
-      <div class="flex items-center bg-slate-900 border border-slate-700 rounded-xl p-0.5 shadow">
-        <button id="lang-btn-en" onclick="setLanguage('en')" class="px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white" title="English">
-          🇬🇧 EN
+      <div class="flex items-center bg-slate-900 border border-slate-700/80 rounded-lg p-0.5 shadow-sm">
+        <button id="lang-btn-en" onclick="setLanguage('en')" class="px-2 py-0.5 rounded text-[11px] md:text-xs font-black transition text-slate-400 hover:text-white" title="English">
+          EN
         </button>
-        <button id="lang-btn-fr" onclick="setLanguage('fr')" class="px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white" title="Français">
-          🇫🇷 FR
+        <button id="lang-btn-fr" onclick="setLanguage('fr')" class="px-2 py-0.5 rounded text-[11px] md:text-xs font-black transition text-slate-400 hover:text-white" title="Français">
+          FR
         </button>
       </div>
 
-      <!-- Edit / Setup Topics Button -->
-      <button onclick="openEditorModal()" class="px-3.5 py-2 rounded-xl bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 text-sm md:text-base font-extrabold flex items-center gap-2 border border-indigo-700/60 transition shadow" title="Éditer les cartes et le thème">
-        <i class="fa-solid fa-pen-to-square text-indigo-400"></i>
-        <span data-i18n="btn-setup">⚙️ Configurer les Sujets</span>
+      <!-- Edit / Setup Topics Button (~30% smaller, single clean icon) -->
+      <button onclick="openEditorModal()" class="px-2.5 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 text-indigo-200 text-xs md:text-xs font-bold flex items-center gap-1.5 border border-indigo-700/60 transition shadow-sm" title="Configure topics and theme">
+        <i class="fa-solid fa-sliders text-indigo-400 text-xs"></i>
+        <span data-i18n="btn-setup">Topics</span>
       </button>
 
-      <!-- Optional Introduction / Rules Button -->
-      <button onclick="openRulesModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-sm md:text-base font-extrabold flex items-center gap-2 border border-slate-700 hover:border-amber-400/40 transition shadow" title="Présenter le déroulement et les règles">
-        <i class="fa-solid fa-circle-question text-amber-400 text-base"></i>
-        <span data-i18n="btn-rules">📋 Règles &amp; Déroulement</span>
+      <!-- Rules / Guidelines Button -->
+      <button onclick="openRulesModal()" class="px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-amber-300 text-xs md:text-xs font-bold flex items-center gap-1.5 border border-slate-700 hover:border-amber-400/40 transition shadow-sm" title="Present guidelines and rules">
+        <i class="fa-solid fa-circle-info text-amber-400 text-xs"></i>
+        <span data-i18n="btn-rules">Rules</span>
       </button>
 
-      <!-- View: Voting & Google Sheets List -->
-      <button onclick="openSummaryModal()" class="px-3.5 py-2 rounded-xl bg-[#772432] hover:bg-[#5a1b26] text-white text-sm md:text-base font-black flex items-center gap-2 transition border border-rose-500/30 shadow">
-        <i class="fa-solid fa-list-check text-amber-300 text-base"></i>
-        <span><span data-i18n="btn-votes">Votes &amp; Temps</span> (<span id="done-counter">0</span>/6)</span>
+      <!-- View: Voting & Times Summary -->
+      <button onclick="openSummaryModal()" class="px-2.5 py-1.5 rounded-lg bg-[#772432]/90 hover:bg-[#772432] text-white text-xs md:text-xs font-bold flex items-center gap-1.5 transition border border-rose-500/30 shadow-sm" title="Review speeches, times, and export">
+        <i class="fa-solid fa-clock text-amber-300 text-xs"></i>
+        <span><span data-i18n="btn-votes">Times</span> (<span id="done-counter">0</span>/6)</span>
       </button>
 
       <!-- Direct Live Vote Screen Button -->
-      <button onclick="openLiveVotingModal()" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm md:text-base font-black flex items-center gap-2 transition shadow-lg shadow-emerald-950/40">
-        <i class="fa-solid fa-square-poll-vertical text-amber-300 text-base"></i>
-        <span data-i18n="btn-live-vote">Écran des Votes en direct</span>
+      <button onclick="openLiveVotingModal()" class="px-2.5 py-1.5 rounded-lg bg-emerald-700/90 hover:bg-emerald-600 text-white text-xs md:text-xs font-extrabold flex items-center gap-1.5 transition shadow-sm" title="Live voting tally & winner reveal">
+        <i class="fa-solid fa-square-poll-vertical text-amber-300 text-xs"></i>
+        <span data-i18n="btn-live-vote">Live Vote</span>
       </button>
 
       <!-- Quick Reset / Clear Session for next meeting -->
-      <button onclick="confirmClearSession()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/80 text-slate-300 hover:text-rose-300 text-sm font-bold flex items-center gap-1.5 border border-slate-700 hover:border-rose-700/60 transition shadow" title="Effacer tous les noms et temps pour la prochaine séance">
-        <i class="fa-solid fa-broom text-amber-400"></i>
-        <span class="hidden xl:inline" data-i18n="btn-clear-session">Nettoyer séance</span>
+      <button onclick="confirmClearSession()" class="px-2 py-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 text-xs font-bold flex items-center gap-1 border border-slate-700/70 hover:border-rose-700/60 transition shadow-sm" title="Clear all speaker names and times">
+        <i class="fa-solid fa-broom text-amber-400 text-xs"></i>
+        <span class="hidden 2xl:inline" data-i18n="btn-clear-session">Clear</span>
       </button>
 
       <!-- Sound toggle -->
-      <button onclick="toggleAudio()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-base font-semibold flex items-center justify-center border border-slate-700 transition" title="Activer / Couper les sons">
-        <i id="sound-icon" class="fa-solid fa-volume-high text-amber-400"></i>
+      <button onclick="toggleAudio()" class="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center justify-center border border-slate-700/70 transition" title="Toggle sound">
+        <i id="sound-icon" class="fa-solid fa-volume-high text-amber-400 text-xs"></i>
       </button>
 
       <!-- Fullscreen button -->
-      <button onclick="toggleFullscreen()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-black flex items-center gap-1.5 border border-slate-700 transition" title="Plein écran (ou touche F11)">
-        <i id="fs-icon" class="fa-solid fa-expand text-base"></i>
-        <span class="hidden lg:inline text-xs text-slate-400 font-mono">F11</span>
+      <button onclick="toggleFullscreen()" class="px-2 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1 border border-slate-700/70 transition" title="Fullscreen (F11)">
+        <i id="fs-icon" class="fa-solid fa-expand text-xs"></i>
+        <span class="hidden lg:inline text-[10px] text-slate-400 font-mono">F11</span>
       </button>
     </div>
   </header>
@@ -635,12 +635,13 @@
     // --- BILINGUAL DICTIONARY (EN / FR) ---
     const TRANSLATIONS = {
       en: {
-        "badge-role": "Table Topics Master",
+        "badge-role": "Table Topics",
         "theme-prefix": "Theme: ",
-        "btn-setup": "⚙️ Configure Topics",
-        "btn-rules": "📋 Rules & Guidelines",
-        "btn-votes": "Votes & Times",
-        "btn-clear-session": "Clear Session",
+        "btn-setup": "Topics",
+        "btn-rules": "Rules",
+        "btn-votes": "Times",
+        "btn-live-vote": "Live Vote",
+        "btn-clear-session": "Clear",
         "btn-clear-speakers-modal": "Clear Speakers",
         "board-title": "Pick a mystery number from 1 to 6!",
         "board-duration-badge": "⏱ 1 to 2 minutes",
@@ -652,7 +653,7 @@
         "stage-speaker-label": "Speaker:",
         "stage-speaker-placeholder": "Enter speaker's name...",
         "timer-legend": "Green 1:00 • Yellow 1:30 • Red 2:00 (Grace 2:30)",
-        "timer-btn-start": "Start Timer",
+        "timer-btn-start": "Start Chrono",
         "timer-btn-pause": "Pause",
         "timer-manual-label": "Official time:",
         "stage-save-return-btn": "Save & Return to Board",
@@ -687,7 +688,6 @@
         "votes-col-eligibility": "Eligibility",
         "votes-btn-copy": "Copy Names & Edit Google Form",
         "votes-btn-close": "Close",
-        "btn-live-vote": "Live Votes Screen",
         "card-completed": "Completed",
         "card-mystery": "Mystery",
         "card-reveal": "Click to reveal",
@@ -704,10 +704,11 @@
       fr: {
         "badge-role": "Meneur d'impro",
         "theme-prefix": "Thème : ",
-        "btn-setup": "⚙️ Configurer les Sujets",
-        "btn-rules": "📋 Règles & Déroulement",
-        "btn-votes": "Votes & Temps",
-        "btn-clear-session": "Nettoyer séance",
+        "btn-setup": "Sujets",
+        "btn-rules": "Règles",
+        "btn-votes": "Temps",
+        "btn-live-vote": "Vote en direct",
+        "btn-clear-session": "Nettoyer",
         "btn-clear-speakers-modal": "Effacer les orateurs",
         "board-title": "Choisissez un numéro mystère de 1 à 6 !",
         "board-duration-badge": "⏱ 1 à 2 minutes",
@@ -754,7 +755,6 @@
         "votes-col-eligibility": "Éligibilité",
         "votes-btn-copy": "Copier les noms & Éditer Google Form",
         "votes-btn-close": "Fermer",
-        "btn-live-vote": "Écran des Votes en direct",
         "card-completed": "Réalisé",
         "card-mystery": "Mystère",
         "card-reveal": "Cliquez pour révéler",
