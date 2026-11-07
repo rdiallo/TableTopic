@@ -11,9 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <!-- QR Code Generator & Confetti for live voting -->
+  <!-- QR Code Generator, Confetti & Lightweight Realtime Client -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
   <style>
     /* Strict 100vh layout with zero scrollbars for projector displays */
@@ -521,7 +522,10 @@
             Pointez l'appareil photo de votre smartphone pour voter en 1 clic pour votre orateur favori.
           </p>
           <div class="mt-3 pt-3 border-t border-slate-800 w-full flex items-center justify-between text-xs text-slate-400">
-            <span>Votants enregistrés :</span>
+            <span class="flex items-center gap-1.5">
+              <span id="sync-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Sync en direct :</span>
+            </span>
             <span id="total-votes-badge" class="font-black font-mono text-base text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-lg border border-emerald-700/60">0</span>
           </div>
         </div>
@@ -533,7 +537,7 @@
               <h3 class="text-sm md:text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
                 <i class="fa-solid fa-medal text-amber-400"></i> Orateurs Éligibles
               </h3>
-              <span class="text-xs text-slate-400 font-semibold" id="voting-status-label">Vote en cours...</span>
+              <span class="text-xs text-emerald-400 font-semibold" id="voting-status-label">En attente de votes...</span>
             </div>
 
             <!-- List of Candidates with live progress bars -->
@@ -594,7 +598,7 @@
           <i class="fa-solid fa-check"></i>
         </div>
         <h2 class="text-2xl font-black text-white mb-1">Vote enregistré !</h2>
-        <p class="text-sm text-emerald-200">Merci pour votre participation. Les résultats vont être affichés sur l'écran de la salle.</p>
+        <p class="text-sm text-emerald-200">Merci pour votre participation. Les résultats s'affichent sur l'écran de la salle en direct.</p>
         <button onclick="allowVoteChange()" class="mt-4 px-4 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-slate-700">
           Changer mon vote
         </button>
@@ -921,10 +925,59 @@
     const STORAGE_KEY_TOPICS = "tm_table_topics_data_v3";
     const STORAGE_KEY_THEME = "tm_table_topics_theme_v3";
     const STORAGE_KEY_VOTES = "tm_table_topics_votes_v1";
+    const STORAGE_KEY_SESSION_ID = "tm_table_topics_session_id";
 
-    // Live Voting State
+    // Realtime Room & Session ID
+    let currentSessionId = "";
+    function getSessionId() {
+      let id = localStorage.getItem(STORAGE_KEY_SESSION_ID);
+      if (!id) {
+        id = 'tm-' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem(STORAGE_KEY_SESSION_ID, id);
+      }
+      return id;
+    }
+
+    // MQTT Realtime Broker
+    let mqttClient = null;
     let votesTally = {};
     const HAS_VOTED_KEY = "tm_has_voted_session";
+
+    function initMqtt(sessionId, isPresenter = false) {
+      if (typeof mqtt === 'undefined') return;
+      try {
+        const broker = 'wss://broker.emqx.io:8084/mqtt';
+        mqttClient = mqtt.connect(broker, {
+          clientId: (isPresenter ? 'pres_' : 'voter_') + Math.random().toString(16).substring(2, 8),
+          clean: true,
+          connectTimeout: 4000
+        });
+
+        mqttClient.on('connect', () => {
+          const dot = document.getElementById('sync-dot');
+          if (dot) dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+          mqttClient.subscribe(`toastmasters/session/${sessionId}/vote`);
+        });
+
+        if (isPresenter) {
+          mqttClient.on('message', (topic, payload) => {
+            try {
+              const msg = JSON.parse(payload.toString());
+              if (msg && msg.speaker) {
+                votesTally[msg.speaker] = (votesTally[msg.speaker] || 0) + 1;
+                saveVotes();
+                renderLiveResults();
+                playTone(550, 'sine', 0.15);
+              }
+            } catch (e) {
+              console.warn(e);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("MQTT setup failed", e);
+      }
+    }
 
     function loadSavedVotes() {
       try {
@@ -947,7 +1000,9 @@
 
     // --- LIVE VOTING MODAL (PRESENTER SCREEN) ---
     function openLiveVotingModal() {
+      currentSessionId = getSessionId();
       loadSavedVotes();
+      initMqtt(currentSessionId, true);
       generateQRCode();
       renderLiveResults();
       document.getElementById('winner-banner').classList.add('hidden');
@@ -962,8 +1017,16 @@
       const container = document.getElementById('qr-container');
       container.innerHTML = '';
 
+      const candidates = getEligibleSpeakers();
+      const encodedSpeakers = encodeURIComponent(JSON.stringify(candidates.map(c => ({ id: c.id, name: c.speaker.trim() }))));
+      const encodedTheme = encodeURIComponent(meetingTheme);
+
       const currentUrl = new URL(window.location.href);
       currentUrl.searchParams.set('vote', 'true');
+      currentUrl.searchParams.set('session', currentSessionId);
+      currentUrl.searchParams.set('speakers', encodedSpeakers);
+      currentUrl.searchParams.set('theme', encodedTheme);
+
       const votingUrl = currentUrl.toString();
 
       new QRCode(container, {
@@ -987,7 +1050,7 @@
       if (candidates.length === 0) {
         container.innerHTML = `
           <div class="text-center py-6 text-slate-500 text-sm italic">
-            Aucun orateur n'a encore été enregistré.<br>Complétez au moins une carte pour ouvrir le vote.
+            Aucun orateur n'a encore été enregistré sur l'ordinateur.<br>Complétez au moins une carte pour ouvrir le vote.
           </div>
         `;
         return;
@@ -1075,12 +1138,33 @@
     }
 
     // --- MOBILE VOTER LOGIC (WHEN ?vote=true IS PRESENT) ---
+    let mobileSpeakersList = [];
+    let mobileSessionId = "";
+
     function checkMobileMode() {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('vote') === 'true') {
         document.querySelector('header').classList.add('hidden');
         document.querySelector('main').classList.add('hidden');
         document.getElementById('view-mobile-vote').classList.remove('hidden');
+
+        mobileSessionId = urlParams.get('session') || 'default-session';
+        initMqtt(mobileSessionId, false);
+
+        const urlTheme = urlParams.get('theme');
+        if (urlTheme) {
+          document.getElementById('mobile-theme-display').innerText = decodeURIComponent(urlTheme);
+        }
+
+        const speakersParam = urlParams.get('speakers');
+        if (speakersParam) {
+          try {
+            mobileSpeakersList = JSON.parse(decodeURIComponent(speakersParam));
+          } catch (e) {
+            mobileSpeakersList = [];
+          }
+        }
+
         setupMobileVotingView();
         return true;
       }
@@ -1088,15 +1172,10 @@
     }
 
     function setupMobileVotingView() {
-      loadSavedData();
-      loadSavedVotes();
-
-      document.getElementById('mobile-theme-display').innerText = meetingTheme;
-      const candidates = getEligibleSpeakers();
       const container = document.getElementById('mobile-candidates-container');
       container.innerHTML = '';
 
-      const hasVoted = localStorage.getItem(HAS_VOTED_KEY);
+      const hasVoted = localStorage.getItem(HAS_VOTED_KEY + '_' + mobileSessionId);
       if (hasVoted) {
         document.getElementById('mobile-has-voted').classList.remove('hidden');
         document.getElementById('mobile-voting-form').classList.add('hidden');
@@ -1106,17 +1185,17 @@
         document.getElementById('mobile-voting-form').classList.remove('hidden');
       }
 
-      if (candidates.length === 0) {
+      if (!mobileSpeakersList || mobileSpeakersList.length === 0) {
         container.innerHTML = `
           <div class="text-center py-8 text-slate-400 text-sm">
-            Les improvisations sont en cours.<br>Rechargez cette page dès que le meneur aura ouvert le vote !
+            Les improvisations sont en cours.<br>Le meneur n'a pas encore validé les noms sur son écran.<br>Rechargez cette page dès que les orateurs sont prêts !
           </div>
         `;
         return;
       }
 
-      candidates.forEach((cand) => {
-        const name = cand.speaker.trim();
+      mobileSpeakersList.forEach((cand) => {
+        const name = cand.name;
         const btn = document.createElement('button');
         btn.onclick = () => submitMobileVote(name);
         btn.className = "w-full p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-[#0b223c] border border-slate-700 hover:border-amber-400 text-left flex items-center justify-between transition shadow active:scale-[0.98]";
@@ -1134,22 +1213,17 @@
     }
 
     function submitMobileVote(speakerName) {
-      loadSavedVotes();
-      votesTally[speakerName] = (votesTally[speakerName] || 0) + 1;
-      saveVotes();
-      localStorage.setItem(HAS_VOTED_KEY, speakerName);
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(`toastmasters/session/${mobileSessionId}/vote`, JSON.stringify({ speaker: speakerName }));
+      }
+      localStorage.setItem(HAS_VOTED_KEY + '_' + mobileSessionId, speakerName);
 
       document.getElementById('mobile-has-voted').classList.remove('hidden');
       document.getElementById('mobile-voting-form').classList.add('hidden');
     }
 
     function allowVoteChange() {
-      const prev = localStorage.getItem(HAS_VOTED_KEY);
-      if (prev && votesTally[prev] > 0) {
-        votesTally[prev]--;
-        saveVotes();
-      }
-      localStorage.removeItem(HAS_VOTED_KEY);
+      localStorage.removeItem(HAS_VOTED_KEY + '_' + mobileSessionId);
       setupMobileVotingView();
     }
 
@@ -1382,6 +1456,8 @@
         t.order = null;
       });
       passageCounter = 0;
+      votesTally = {};
+      saveVotes();
       persistData();
       renderBoard();
       renderSummaryTable();
