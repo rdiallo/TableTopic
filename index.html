@@ -11,8 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <!-- QR Code Generator, Confetti & Lightweight Realtime Client -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Confetti & Lightweight Realtime Client -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -110,10 +109,10 @@
         <span><span data-i18n="btn-votes">Votes &amp; Temps</span> (<span id="done-counter">0</span>/6)</span>
       </button>
 
-      <!-- Direct Live Vote & QR Code Button -->
+      <!-- Direct Live Vote Screen Button -->
       <button onclick="openLiveVotingModal()" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm md:text-base font-black flex items-center gap-2 transition shadow-lg shadow-emerald-950/40">
-        <i class="fa-solid fa-qrcode text-amber-300 text-base"></i>
-        <span data-i18n="btn-live-vote">Lancer le Vote en direct</span>
+        <i class="fa-solid fa-square-poll-vertical text-amber-300 text-base"></i>
+        <span data-i18n="btn-live-vote">Écran des Votes en direct</span>
       </button>
 
       <!-- Quick Reset / Clear Session for next meeting -->
@@ -498,7 +497,7 @@
   </div>
 
   <!-- ============================================================== -->
-  <!-- MODAL : VOTE EN DIRECT AVEC QR CODE & RÉSULTATS (GRAND ÉCRAN)   -->
+  <!-- MODAL : VOTE EN DIRECT & RÉSULTATS (GRAND ÉCRAN - SANS QR)     -->
   <!-- ============================================================== -->
   <div id="modal-live-vote" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
     <div class="bg-[#0b1f36] border-2 border-emerald-500/50 text-slate-100 rounded-3xl max-w-5xl w-full p-6 shadow-2xl flex flex-col justify-between max-h-[94vh] overflow-hidden">
@@ -532,39 +531,25 @@
         </div>
       </div>
 
-      <!-- Main Split View: Left (QR Code) / Right (Live Tally) -->
-      <div class="flex-1 grid grid-cols-1 md:grid-cols-12 gap-5 my-4 overflow-y-auto pr-1">
-        
-        <!-- Left: QR Code Card -->
-        <div class="md:col-span-5 bg-slate-900 border border-slate-700 rounded-2xl p-5 flex flex-col items-center justify-center text-center shadow">
-          <div class="bg-white p-3.5 rounded-2xl shadow-xl border-4 border-amber-400 mb-3" id="qr-container"></div>
-          <p class="text-sm font-black text-amber-300 flex items-center gap-1.5 mb-1">
-            <i class="fa-solid fa-mobile-screen-button"></i> Scannez avec votre téléphone
-          </p>
-          <p class="text-xs text-slate-400 leading-tight">
-            Pointez l'appareil photo de votre smartphone pour voter en 1 clic pour votre orateur favori.
-          </p>
-          <div class="mt-3 pt-3 border-t border-slate-800 w-full flex items-center justify-between text-xs text-slate-400">
-            <span class="flex items-center gap-1.5">
-              <span id="sync-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Sync en direct :</span>
-            </span>
-            <span id="total-votes-badge" class="font-black font-mono text-base text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-lg border border-emerald-700/60">0</span>
-          </div>
-        </div>
-
-        <!-- Right: Realtime Leaderboard / Candidates -->
-        <div class="md:col-span-7 bg-slate-900/80 border border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between">
+      <!-- Main Direct View: Realtime Leaderboard / Candidates -->
+      <div class="flex-1 my-4 overflow-y-auto pr-1">
+        <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between h-full">
           <div>
             <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
               <h3 class="text-sm md:text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <i class="fa-solid fa-medal text-amber-400"></i> Orateurs Éligibles
+                <i class="fa-solid fa-medal text-amber-400"></i> Orateurs Éligibles &amp; Résultats en direct
               </h3>
-              <span class="text-xs text-emerald-400 font-semibold" id="voting-status-label">En attente de votes...</span>
+              <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span id="sync-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Sync Cloud active</span>
+                </span>
+                <span class="text-xs text-emerald-400 font-semibold" id="voting-status-label">En attente des votes de la salle...</span>
+              </div>
             </div>
 
             <!-- List of Candidates with live progress bars -->
-            <div id="live-candidates-list" class="space-y-2.5 max-h-[300px] overflow-y-auto pr-1"></div>
+            <div id="live-candidates-list" class="space-y-3 max-h-[380px] overflow-y-auto pr-1"></div>
           </div>
 
           <!-- Winner Reveal Banner -->
@@ -580,7 +565,6 @@
             </p>
           </div>
         </div>
-
       </div>
 
       <!-- Footer Buttons -->
@@ -590,7 +574,7 @@
         </button>
 
         <div class="flex items-center gap-3">
-          <button onclick="resetAllVotes()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-400 hover:text-rose-300 text-xs font-bold border border-slate-700 transition">
+          <button onclick="resetAllVotes()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-400 hover:text-rose-300 text-xs font-bold border border-slate-700 transition" title="Réinitialiser les votes et permettre à tous les téléphones de revoter">
             <i class="fa-solid fa-rotate-left mr-1"></i> Réinitialiser les votes
           </button>
           <button onclick="revealWinner()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-sm md:text-base flex items-center gap-2 shadow-lg shadow-amber-400/20 transition">
@@ -703,7 +687,7 @@
         "votes-col-eligibility": "Eligibility",
         "votes-btn-copy": "Copy Names & Edit Google Form",
         "votes-btn-close": "Close",
-        "btn-live-vote": "Live Vote (QR Code)",
+        "btn-live-vote": "Live Votes Screen",
         "card-completed": "Completed",
         "card-mystery": "Mystery",
         "card-reveal": "Click to reveal",
@@ -770,7 +754,7 @@
         "votes-col-eligibility": "Éligibilité",
         "votes-btn-copy": "Copier les noms & Éditer Google Form",
         "votes-btn-close": "Fermer",
-        "btn-live-vote": "Lancer le Vote en direct",
+        "btn-live-vote": "Écran des Votes en direct",
         "card-completed": "Réalisé",
         "card-mystery": "Mystère",
         "card-reveal": "Cliquez pour révéler",
@@ -865,7 +849,6 @@
       }
     ];
 
-    // Language state: 'en' by default, or loaded from localStorage
     let currentLang = 'en';
     const STORAGE_KEY_LANG = "tm_table_topics_lang_v1";
 
@@ -949,29 +932,43 @@
     let meetingTheme = "Practicing Public Speaking";
     let TOPICS_DATA = buildFreshTopics('en');
 
-    // Persistent storage keys
+    // Storage keys
     const STORAGE_KEY_TOPICS = "tm_table_topics_data_v3";
     const STORAGE_KEY_THEME = "tm_table_topics_theme_v3";
     const STORAGE_KEY_VOTES = "tm_table_topics_votes_v2";
     const STORAGE_KEY_VOTERS = "tm_table_topics_voters_list_v2";
-    const STORAGE_KEY_SESSION_ID = "tm_table_topics_session_id";
+    const STORAGE_KEY_ROUND_ID = "tm_table_topics_round_id";
 
-    // Realtime Room & Session ID
-    let currentSessionId = "";
-    function getSessionId() {
-      let id = localStorage.getItem(STORAGE_KEY_SESSION_ID);
-      if (!id) {
-        id = 'tm-' + Math.random().toString(36).substring(2, 9);
-        localStorage.setItem(STORAGE_KEY_SESSION_ID, id);
+    // Fixed default Toastmasters session channel
+    const DEFAULT_CLUB_SESSION = "tm_global_club_session";
+    let currentSessionId = DEFAULT_CLUB_SESSION;
+    let currentRoundId = 1;
+
+    function getRoundId() {
+      let r = localStorage.getItem(STORAGE_KEY_ROUND_ID);
+      if (!r) {
+        r = Date.now().toString();
+        localStorage.setItem(STORAGE_KEY_ROUND_ID, r);
       }
-      return id;
+      currentRoundId = r;
+      return r;
     }
 
     // MQTT Realtime Broker & Strict Anti-Double Voting State
     let mqttClient = null;
     let votesTally = {};
     let recordedVoterIds = new Set();
-    const HAS_VOTED_KEY = "tm_has_voted_session";
+    const HAS_VOTED_PREFIX = "tm_has_voted_round_";
+
+    function broadcastSpeakersToPhones() {
+      if (!mqttClient || !mqttClient.connected) return;
+      const candidates = getEligibleSpeakers().map(c => ({ id: c.id, name: c.speaker.trim() }));
+      mqttClient.publish(`toastmasters/session/${currentSessionId}/speakers_sync`, JSON.stringify({
+        speakers: candidates,
+        theme: meetingTheme,
+        roundId: currentRoundId
+      }), { retain: true });
+    }
 
     function initMqtt(sessionId, isPresenter = false) {
       if (typeof mqtt === 'undefined') return;
@@ -986,29 +983,41 @@
         mqttClient.on('connect', () => {
           const dot = document.getElementById('sync-dot');
           if (dot) dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+          
           mqttClient.subscribe(`toastmasters/session/${sessionId}/vote`);
+          mqttClient.subscribe(`toastmasters/session/${sessionId}/control`);
+
+          if (isPresenter) {
+            broadcastSpeakersToPhones();
+          }
         });
 
         if (isPresenter) {
           mqttClient.on('message', (topic, payload) => {
             try {
-              const msg = JSON.parse(payload.toString());
-              if (msg && msg.speaker) {
-                // Strict anti-double voting check: ensure voterId was not already processed
-                const voterId = msg.voterId || (msg.deviceFingerprint || null);
-                if (voterId && recordedVoterIds.has(voterId)) {
-                  console.warn("Ignored duplicate vote from voter:", voterId);
-                  return;
-                }
+              if (topic.endsWith('/vote')) {
+                const msg = JSON.parse(payload.toString());
+                if (msg && msg.speaker) {
+                  if (msg.roundId && msg.roundId !== currentRoundId) {
+                    console.warn("Ignored vote from deprecated round:", msg.roundId);
+                    return;
+                  }
 
-                if (voterId) {
-                  recordedVoterIds.add(voterId);
-                }
+                  const voterId = msg.voterId || null;
+                  if (voterId && recordedVoterIds.has(voterId)) {
+                    console.warn("Ignored duplicate vote from voter:", voterId);
+                    return;
+                  }
 
-                votesTally[msg.speaker] = (votesTally[msg.speaker] || 0) + 1;
-                saveVotes();
-                renderLiveResults(true); // trigger pulse animation on corner counter
-                playTone(550, 'sine', 0.15);
+                  if (voterId) {
+                    recordedVoterIds.add(voterId);
+                  }
+
+                  votesTally[msg.speaker] = (votesTally[msg.speaker] || 0) + 1;
+                  saveVotes();
+                  renderLiveResults(true);
+                  playTone(550, 'sine', 0.15);
+                }
               }
             } catch (e) {
               console.warn(e);
@@ -1043,12 +1052,15 @@
       return getOrderedTopics().filter(t => t.speaker && t.speaker.trim() !== "");
     }
 
-    // --- LIVE VOTING MODAL (PRESENTER SCREEN) ---
+    // --- LIVE VOTING SCREEN (PRESENTER SCREEN - NO QR NEEDED) ---
     function openLiveVotingModal() {
-      currentSessionId = getSessionId();
+      getRoundId();
       loadSavedVotes();
-      initMqtt(currentSessionId, true);
-      generateQRCode();
+      if (!mqttClient || !mqttClient.connected) {
+        initMqtt(currentSessionId, true);
+      } else {
+        broadcastSpeakersToPhones();
+      }
       renderLiveResults();
       document.getElementById('winner-banner').classList.add('hidden');
       document.getElementById('modal-live-vote').classList.remove('hidden');
@@ -1058,32 +1070,6 @@
       document.getElementById('modal-live-vote').classList.add('hidden');
     }
 
-    function generateQRCode() {
-      const container = document.getElementById('qr-container');
-      container.innerHTML = '';
-
-      const candidates = getEligibleSpeakers();
-      const encodedSpeakers = encodeURIComponent(JSON.stringify(candidates.map(c => ({ id: c.id, name: c.speaker.trim() }))));
-      const encodedTheme = encodeURIComponent(meetingTheme);
-
-      const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.set('vote', 'true');
-      currentUrl.searchParams.set('session', currentSessionId);
-      currentUrl.searchParams.set('speakers', encodedSpeakers);
-      currentUrl.searchParams.set('theme', encodedTheme);
-
-      const votingUrl = currentUrl.toString();
-
-      new QRCode(container, {
-        text: votingUrl,
-        width: 170,
-        height: 170,
-        colorDark: "#004165",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.M
-      });
-    }
-
     function renderLiveResults(triggerPing = false) {
       const container = document.getElementById('live-candidates-list');
       container.innerHTML = '';
@@ -1091,22 +1077,19 @@
       const candidates = getEligibleSpeakers();
       const totalVotes = Object.values(votesTally).reduce((a, b) => a + b, 0);
 
-      // Update both tally counters
-      const badge = document.getElementById('total-votes-badge');
       const headerTally = document.getElementById('header-total-votes');
-      if (badge) badge.innerText = totalVotes;
       if (headerTally) {
         headerTally.innerText = totalVotes;
         if (triggerPing) {
           headerTally.classList.remove('vote-ping');
-          void headerTally.offsetWidth; // trigger reflow
+          void headerTally.offsetWidth;
           headerTally.classList.add('vote-ping');
         }
       }
 
       if (candidates.length === 0) {
         container.innerHTML = `
-          <div class="text-center py-6 text-slate-500 text-sm italic">
+          <div class="text-center py-10 text-slate-500 text-base italic">
             Aucun orateur n'a encore été enregistré sur l'ordinateur.<br>Complétez au moins une carte pour ouvrir le vote.
           </div>
         `;
@@ -1119,17 +1102,17 @@
         const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
 
         const row = document.createElement('div');
-        row.className = "bg-slate-950/70 border border-slate-800 rounded-xl p-3";
+        row.className = "bg-slate-950/80 border border-slate-800 rounded-2xl p-4";
         row.innerHTML = `
-          <div class="flex items-center justify-between text-xs md:text-sm font-black mb-1.5">
-            <span class="text-white flex items-center gap-2">
-              <span class="text-amber-400 font-mono">#${cand.id}</span>
+          <div class="flex items-center justify-between text-sm md:text-base font-black mb-2">
+            <span class="text-white flex items-center gap-2.5">
+              <span class="text-amber-400 font-mono text-base">#${cand.id}</span>
               <span>${name}</span>
             </span>
             <span class="font-mono text-emerald-400">${count} vote(s) (${pct}%)</span>
           </div>
-          <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+          <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-3 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
           </div>
         `;
         container.appendChild(row);
@@ -1152,13 +1135,31 @@
     }
 
     function resetAllVotes() {
-      if (confirm(currentLang === 'en' ? "Reset all recorded votes?" : "Remettre à zéro tous les votes enregistrés ?")) {
+      const confirmMsg = currentLang === 'en' 
+        ? "Reset all recorded votes to 0 and allow everyone to vote again?" 
+        : "Remettre à zéro tous les votes et autoriser tous les téléphones à revoter ?";
+      
+      if (confirm(confirmMsg)) {
         votesTally = {};
         recordedVoterIds.clear();
         saveVotes();
+
+        // Advance to a new unique voting round
+        currentRoundId = Date.now().toString();
+        localStorage.setItem(STORAGE_KEY_ROUND_ID, currentRoundId);
+
+        // Broadcast real-time reset signal directly to phones without requiring any scan
+        if (mqttClient && mqttClient.connected) {
+          mqttClient.publish(`toastmasters/session/${currentSessionId}/control`, JSON.stringify({
+            action: 'reset_session',
+            roundId: currentRoundId
+          }));
+          broadcastSpeakersToPhones();
+        }
+
         renderLiveResults();
         document.getElementById('winner-banner').classList.add('hidden');
-        showToast(currentLang === 'en' ? "Votes reset to zero." : "Votes remis à zéro.");
+        showToast(currentLang === 'en' ? "Votes reset: all phones can vote again!" : "Votes réinitialisés : tous les participants peuvent revoter !");
       }
     }
 
@@ -1197,9 +1198,9 @@
       document.getElementById('winner-banner').classList.remove('hidden');
     }
 
-    // --- MOBILE VOTER LOGIC (WHEN ?vote=true IS PRESENT) ---
+    // --- MOBILE VOTER LOGIC (FOR PERMANENT VOTING URL) ---
     let mobileSpeakersList = [];
-    let mobileSessionId = "";
+    let mobileRoundId = "1";
 
     function getDeviceVoterId() {
       let vid = localStorage.getItem('tm_persistent_voter_id');
@@ -1212,39 +1213,72 @@
 
     function checkMobileMode() {
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('vote') === 'true') {
+      const isVotePath = window.location.pathname.endsWith('/vote');
+      if (urlParams.get('vote') === 'true' || isVotePath) {
         document.querySelector('header').classList.add('hidden');
         document.querySelector('main').classList.add('hidden');
         document.getElementById('view-mobile-vote').classList.remove('hidden');
 
-        mobileSessionId = urlParams.get('session') || 'default-session';
-        initMqtt(mobileSessionId, false);
+        currentSessionId = urlParams.get('session') || DEFAULT_CLUB_SESSION;
+        mobileRoundId = urlParams.get('round') || "1";
 
-        const urlTheme = urlParams.get('theme');
-        if (urlTheme) {
-          document.getElementById('mobile-theme-display').innerText = decodeURIComponent(urlTheme);
-        }
-
-        const speakersParam = urlParams.get('speakers');
-        if (speakersParam) {
-          try {
-            mobileSpeakersList = JSON.parse(decodeURIComponent(speakersParam));
-          } catch (e) {
-            mobileSpeakersList = [];
-          }
-        }
-
+        initMobileMqtt(currentSessionId);
         setupMobileVotingView();
         return true;
       }
       return false;
     }
 
+    function initMobileMqtt(sessionId) {
+      if (typeof mqtt === 'undefined') return;
+      try {
+        const broker = 'wss://broker.emqx.io:8084/mqtt';
+        mqttClient = mqtt.connect(broker, {
+          clientId: 'voter_' + Math.random().toString(16).substring(2, 8),
+          clean: true,
+          connectTimeout: 4000
+        });
+
+        mqttClient.on('connect', () => {
+          // Listen to speakers synchronization and reset commands
+          mqttClient.subscribe(`toastmasters/session/${sessionId}/speakers_sync`);
+          mqttClient.subscribe(`toastmasters/session/${sessionId}/control`);
+        });
+
+        mqttClient.on('message', (topic, payload) => {
+          try {
+            if (topic.endsWith('/speakers_sync')) {
+              const data = JSON.parse(payload.toString());
+              if (data) {
+                if (data.speakers) mobileSpeakersList = data.speakers;
+                if (data.theme) document.getElementById('mobile-theme-display').innerText = data.theme;
+                if (data.roundId) mobileRoundId = data.roundId;
+                setupMobileVotingView();
+              }
+            } else if (topic.endsWith('/control')) {
+              const msg = JSON.parse(payload.toString());
+              if (msg && msg.action === 'reset_session') {
+                if (msg.roundId) mobileRoundId = msg.roundId;
+                localStorage.removeItem(HAS_VOTED_PREFIX + mobileRoundId);
+                setupMobileVotingView();
+              }
+            }
+          } catch (e) {
+            console.warn("Mobile MQTT error", e);
+          }
+        });
+      } catch (e) {
+        console.warn("Mobile MQTT connect error", e);
+      }
+    }
+
     function setupMobileVotingView() {
       const container = document.getElementById('mobile-candidates-container');
       container.innerHTML = '';
 
-      const prevVoted = localStorage.getItem(HAS_VOTED_KEY + '_' + mobileSessionId);
+      const roundVoteKey = HAS_VOTED_PREFIX + mobileRoundId;
+      const prevVoted = localStorage.getItem(roundVoteKey);
+
       if (prevVoted) {
         document.getElementById('mobile-selected-candidate').innerText = prevVoted;
         document.getElementById('mobile-has-voted').classList.remove('hidden');
@@ -1258,7 +1292,7 @@
       if (!mobileSpeakersList || mobileSpeakersList.length === 0) {
         container.innerHTML = `
           <div class="text-center py-8 text-slate-400 text-sm">
-            Les improvisations sont en cours.<br>Le meneur n'a pas encore validé les noms sur son écran.<br>Rechargez cette page dès que les orateurs sont prêts !
+            Les improvisations sont en cours.<br>Les orateurs apparaîtront automatiquement ici dès qu'ils seront validés par le meneur !
           </div>
         `;
         return;
@@ -1283,8 +1317,8 @@
     }
 
     function submitMobileVote(speakerName) {
-      // Prevent double submission on device
-      const prevVoted = localStorage.getItem(HAS_VOTED_KEY + '_' + mobileSessionId);
+      const roundVoteKey = HAS_VOTED_PREFIX + mobileRoundId;
+      const prevVoted = localStorage.getItem(roundVoteKey);
       if (prevVoted) {
         alert("Vous avez déjà voté pour cette session !");
         return;
@@ -1293,13 +1327,14 @@
       const voterId = getDeviceVoterId();
 
       if (mqttClient && mqttClient.connected) {
-        mqttClient.publish(`toastmasters/session/${mobileSessionId}/vote`, JSON.stringify({ 
+        mqttClient.publish(`toastmasters/session/${currentSessionId}/vote`, JSON.stringify({ 
           speaker: speakerName,
-          voterId: voterId
+          voterId: voterId,
+          roundId: mobileRoundId
         }));
       }
 
-      localStorage.setItem(HAS_VOTED_KEY + '_' + mobileSessionId, speakerName);
+      localStorage.setItem(roundVoteKey, speakerName);
 
       document.getElementById('mobile-selected-candidate').innerText = speakerName;
       document.getElementById('mobile-has-voted').classList.remove('hidden');
@@ -1342,6 +1377,7 @@
       } catch (err) {
         console.warn("Storage save error:", err);
       }
+      broadcastSpeakersToPhones();
     }
 
     function updateThemeInHeader() {
@@ -1538,6 +1574,17 @@
       votesTally = {};
       recordedVoterIds.clear();
       saveVotes();
+
+      currentRoundId = Date.now().toString();
+      localStorage.setItem(STORAGE_KEY_ROUND_ID, currentRoundId);
+
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(`toastmasters/session/${currentSessionId}/control`, JSON.stringify({
+          action: 'reset_session',
+          roundId: currentRoundId
+        }));
+      }
+
       persistData();
       renderBoard();
       renderSummaryTable();
@@ -1971,6 +2018,9 @@
       loadSavedData();
       const maxOrder = Math.max(0, ...TOPICS_DATA.map(t => t.order || 0));
       passageCounter = maxOrder;
+
+      // Start cloud synchronization immediately for presenter screen
+      initMqtt(currentSessionId, true);
 
       renderBoard();
       showView('board');
