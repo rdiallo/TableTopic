@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toastmasters - Table Topics Master</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- QR Code Generator & Confetti for live voting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    /* Strict 100vh layout with zero scrollbars for projector displays */
+    html, body {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.02); opacity: 0.9; }
+    }
+    .pulse-overtime {
+      animation: pulseSoft 1s infinite ease-in-out;
+    }
+
+    /* Fluid typography tuned for projectors & room reading without overflow */
+    .quote-fluid {
+      font-size: clamp(1.4rem, 2.3vw, 2.5rem);
+      line-height: 1.35;
+    }
+    .card-num-fluid {
+      font-size: clamp(1.8rem, 3.2vw, 3rem);
+      line-height: 1;
+    }
+    .card-title-fluid {
+      font-size: clamp(1rem, 1.35vw, 1.45rem);
+      line-height: 1.25;
+    }
+    .timer-fluid {
+      font-size: clamp(2.4rem, 4.2vw, 4.4rem);
+      line-height: 1;
+    }
+  </style>
+</head>
+<body class="bg-[#091424] text-slate-100 h-screen max-h-screen flex flex-col font-['Plus_Jakarta_Sans',sans-serif] overflow-hidden select-none">
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="h-16 md:h-18 flex-none border-b border-slate-800 bg-[#06101c] px-4 md:px-8 flex items-center justify-between z-30 shadow-md">
+    <!-- Left: Club info & Theme -->
+    <div class="flex items-center gap-3 md:gap-4">
+      <div class="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-lg">
+        <i class="fa-solid fa-microphone-lines text-lg md:text-xl"></i>
+      </div>
+      <div class="flex items-center gap-2 md:gap-3">
+        <span class="text-sm md:text-base uppercase tracking-widest font-black text-amber-400 hidden sm:inline">Toastmasters</span>
+        <span class="text-slate-600 hidden sm:inline text-lg">•</span>
+        <span class="text-xs md:text-sm font-bold bg-rose-950/80 text-rose-300 border border-rose-800/60 px-2.5 py-1 rounded-lg hidden md:inline">Meneur d'impro</span>
+        <h1 class="text-base md:text-xl font-black text-white tracking-tight truncate ml-1">
+          Thème : <span id="header-theme-display" class="text-sky-300 font-bold">« Pratiquer la prise de parole »</span>
+        </h1>
+      </div>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center gap-2 md:gap-3">
+      <!-- Language Switcher (EN / FR) -->
+      <div class="flex items-center bg-slate-900 border border-slate-700 rounded-xl p-0.5 shadow">
+        <button id="lang-btn-en" onclick="setLanguage('en')" class="px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white" title="English">
+          🇬🇧 EN
+        </button>
+        <button id="lang-btn-fr" onclick="setLanguage('fr')" class="px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white" title="Français">
+          🇫🇷 FR
+        </button>
+      </div>
+
+      <!-- Edit / Setup Topics Button -->
+      <button onclick="openEditorModal()" class="px-3.5 py-2 rounded-xl bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 text-sm md:text-base font-extrabold flex items-center gap-2 border border-indigo-700/60 transition shadow" title="Éditer les cartes et le thème">
+        <i class="fa-solid fa-pen-to-square text-indigo-400"></i>
+        <span data-i18n="btn-setup">⚙️ Configurer les Sujets</span>
+      </button>
+
+      <!-- Optional Introduction / Rules Button -->
+      <button onclick="openRulesModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-sm md:text-base font-extrabold flex items-center gap-2 border border-slate-700 hover:border-amber-400/40 transition shadow" title="Présenter le déroulement et les règles">
+        <i class="fa-solid fa-circle-question text-amber-400 text-base"></i>
+        <span data-i18n="btn-rules">📋 Règles &amp; Déroulement</span>
+      </button>
+
+      <!-- View: Voting & Google Sheets List -->
+      <button onclick="openSummaryModal()" class="px-3.5 py-2 rounded-xl bg-[#772432] hover:bg-[#5a1b26] text-white text-sm md:text-base font-black flex items-center gap-2 transition border border-rose-500/30 shadow">
+        <i class="fa-solid fa-list-check text-amber-300 text-base"></i>
+        <span><span data-i18n="btn-votes">Votes &amp; Temps</span> (<span id="done-counter">0</span>/6)</span>
+      </button>
+
+      <!-- Direct Live Vote & QR Code Button -->
+      <button onclick="openLiveVotingModal()" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm md:text-base font-black flex items-center gap-2 transition shadow-lg shadow-emerald-950/40">
+        <i class="fa-solid fa-qrcode text-amber-300 text-base"></i>
+        <span data-i18n="btn-live-vote">Lancer le Vote en direct</span>
+      </button>
+
+      <!-- Quick Reset / Clear Session for next meeting -->
+      <button onclick="confirmClearSession()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/80 text-slate-300 hover:text-rose-300 text-sm font-bold flex items-center gap-1.5 border border-slate-700 hover:border-rose-700/60 transition shadow" title="Effacer tous les noms et temps pour la prochaine séance">
+        <i class="fa-solid fa-broom text-amber-400"></i>
+        <span class="hidden xl:inline" data-i18n="btn-clear-session">Nettoyer séance</span>
+      </button>
+
+      <!-- Sound toggle -->
+      <button onclick="toggleAudio()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-base font-semibold flex items-center justify-center border border-slate-700 transition" title="Activer / Couper les sons">
+        <i id="sound-icon" class="fa-solid fa-volume-high text-amber-400"></i>
+      </button>
+
+      <!-- Fullscreen button -->
+      <button onclick="toggleFullscreen()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-black flex items-center gap-1.5 border border-slate-700 transition" title="Plein écran (ou touche F11)">
+        <i id="fs-icon" class="fa-solid fa-expand text-base"></i>
+        <span class="hidden lg:inline text-xs text-slate-400 font-mono">F11</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= NOTIFICATION TOAST ================= -->
+  <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-emerald-600 text-white px-6 py-3 rounded-2xl text-base font-black shadow-2xl flex items-center gap-3 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-10px]">
+    <i class="fa-solid fa-circle-check text-xl"></i>
+    <span id="toast-msg">Notification</span>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL : ÉDITION & CONFIGURATION DES SUJETS (MODE MENEUR)       -->
+  <!-- ============================================================== -->
+  <div id="modal-editor" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
+    <div class="bg-[#0b1f36] border-2 border-indigo-500/50 text-slate-100 rounded-3xl max-w-6xl w-full p-5 md:p-7 shadow-2xl flex flex-col justify-between max-h-[95vh] overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700 flex-none">
+        <div>
+          <span class="text-xs md:text-sm font-black uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+            <i class="fa-solid fa-sliders"></i> Espace Préparation • Meneur d'improvisation
+          </span>
+          <h2 class="text-2xl md:text-3xl font-black text-white mt-1">
+            Configurer &amp; Personnaliser les 6 Sujets
+          </h2>
+        </div>
+        <button onclick="closeEditorModal()" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Theme Config Bar -->
+      <div class="flex-none my-3 bg-slate-900/90 p-3.5 rounded-2xl border border-slate-700 flex flex-col sm:flex-row items-center gap-3">
+        <label for="theme-input" class="text-xs md:text-sm font-bold text-amber-300 whitespace-nowrap flex items-center gap-2">
+          <i class="fa-solid fa-bullhorn"></i> <span data-i18n="cfg-theme-label">Thème de la réunion :</span>
+        </label>
+        <input id="theme-input" type="text" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-1.5 text-sm md:text-base font-bold text-white focus:outline-none focus:border-indigo-400" placeholder="ex: Practicing Public Speaking">
+      </div>
+
+      <!-- 6 Topics Editor Cards Grid -->
+      <div class="flex-1 overflow-y-auto pr-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 my-1">
+        <div id="editor-cards-container" class="contents"></div>
+      </div>
+
+      <!-- Footer Buttons -->
+      <div class="flex-none pt-3.5 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <button onclick="resetToDefaultTopics()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-300 text-xs font-bold border border-slate-700 transition" title="Restaurer les sujets par défaut">
+            <i class="fa-solid fa-rotate-left mr-1"></i> <span data-i18n="cfg-reset-btn">Réinitialiser aux sujets initiaux</span>
+          </button>
+          <button onclick="clearSpeakersOnly()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-300 text-xs font-bold border border-slate-700 transition" title="Effacer uniquement les noms et temps enregistrés pour une nouvelle session">
+            <i class="fa-solid fa-eraser mr-1"></i> <span data-i18n="cfg-clear-btn">Vider les orateurs</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button onclick="closeEditorModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm" data-i18n="cfg-cancel-btn">
+            Annuler
+          </button>
+          <button onclick="saveEditorDataAndLock()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-black text-sm md:text-base flex items-center gap-2 shadow-lg shadow-indigo-900/40 transition">
+            <i class="fa-solid fa-lock text-amber-300"></i>
+            <span data-i18n="cfg-save-btn">Enregistrer &amp; Verrouiller pour la Présentation</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MAIN SCREEN CONTAINER (100% FIT) ================= -->
+  <main class="flex-1 w-full max-w-[1700px] mx-auto p-3 md:p-5 flex flex-col justify-between overflow-hidden">
+
+    <!-- ======================================================= -->
+    <!-- VIEW 1 : LE PLATEAU DES 6 CARTES (AFFICHÉ PAR DÉFAUT)    -->
+    <!-- ======================================================= -->
+    <section id="view-board" class="h-full flex flex-col justify-between overflow-hidden">
+      
+      <!-- Sub-Header / Instructions with Large Text -->
+      <div class="flex-none flex items-center justify-between pb-3">
+        <div>
+          <h2 class="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-tight flex items-center gap-3">
+            <span data-i18n="board-title">Choisissez un numéro mystère de 1 à 6 !</span>
+            <span class="text-sm md:text-base font-black text-amber-400 bg-amber-500/15 border border-amber-500/30 px-3.5 py-1 rounded-full" data-i18n="board-duration-badge">
+              ⏱ 1 à 2 minutes
+            </span>
+          </h2>
+          <p class="text-sm md:text-base text-slate-300 font-medium mt-1" data-i18n="board-sub">
+            Invitez l'orateur sur scène, demandez-lui un numéro, puis cliquez sur sa carte pour dévoiler son sujet.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="openRulesModal()" class="text-sm md:text-base text-amber-300 hover:text-amber-200 font-bold transition flex items-center gap-1.5 underline underline-offset-4">
+            <i class="fa-solid fa-info-circle"></i> <span data-i18n="board-rules-link">Voir les consignes</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 6 CARDS IN 3 COLUMNS x 2 ROWS (FITS PERFECTLY WITHOUT SCROLL) -->
+      <div id="cards-grid" class="flex-1 grid grid-cols-3 grid-rows-2 gap-3 md:gap-5 my-1">
+        <!-- Generated dynamically in JS -->
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="flex-none pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs md:text-sm text-slate-400">
+        <span class="font-medium"><i class="fa-solid fa-sparkles text-amber-400 mr-2"></i> <span data-i18n="board-welcome-note">Bienvenue aux membres et aux invités : amusez-vous et prenez du plaisir au micro !</span></span>
+        <button onclick="openSummaryModal()" class="text-sky-300 hover:text-sky-200 font-bold text-sm md:text-base transition flex items-center gap-1.5">
+          <span data-i18n="board-open-summary">Ouvrir la liste récapitulative pour le vote</span>
+          <i class="fa-solid fa-arrow-right text-xs"></i>
+        </button>
+      </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- VIEW 2 : ÉCRAN D'AFFICHAGE DU SUJET & CHRONO (GÉANT)   -->
+    <!-- ======================================================= -->
+    <section id="view-stage" class="hidden h-full flex flex-col justify-between overflow-hidden">
+      
+      <!-- Top Action Bar -->
+      <div class="flex-none flex items-center justify-between pb-2">
+        <button onclick="showView('board')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-black text-sm md:text-base flex items-center gap-2 border border-slate-700 transition">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span data-i18n="stage-back-btn">Retour au plateau</span>
+        </button>
+
+        <div class="flex items-center gap-3">
+          <span id="stage-badge-number" class="text-sm md:text-base font-black bg-amber-400 text-slate-950 px-3.5 py-1.5 rounded-xl shadow">
+            Sujet #1
+          </span>
+          <span id="stage-badge-category" class="text-sm md:text-base font-black bg-slate-800 text-sky-300 border border-slate-700 px-3.5 py-1.5 rounded-xl">
+            Catégorie
+          </span>
+        </div>
+      </div>
+
+      <!-- Topic Card with Massive Projection Typography -->
+      <div class="flex-1 bg-gradient-to-b from-[#0b223c] to-[#051322] border-2 border-slate-700 rounded-3xl p-4 md:p-6 shadow-2xl flex flex-col justify-between overflow-hidden">
+        
+        <!-- Speaker Input Field -->
+        <div class="flex-none flex items-center gap-3 bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-2">
+          <i class="fa-solid fa-user-tie text-amber-400 text-base md:text-lg"></i>
+          <label for="speaker-input" class="text-sm md:text-base font-black text-slate-200 whitespace-nowrap" data-i18n="stage-speaker-label">Orateur(rice) :</label>
+          <input id="speaker-input" type="text" placeholder="Entrez le prénom / nom de la personne..." 
+            class="flex-1 bg-transparent text-base md:text-lg text-amber-300 font-bold focus:outline-none placeholder-slate-500"
+            oninput="updateCurrentSpeakerName(this.value)">
+        </div>
+
+        <!-- The Topic Quote -->
+        <div class="flex-1 flex flex-col justify-center items-center text-center px-4 md:px-10 my-auto overflow-hidden">
+          <p id="stage-category-label" class="text-xs md:text-sm uppercase tracking-widest font-black text-amber-400 mb-2">
+            Catégorie
+          </p>
+          <blockquote id="stage-topic-text" class="font-['Playfair_Display',serif] quote-fluid font-black text-white drop-shadow-md max-w-4xl px-2">
+            « Texte du sujet d'improvisation »
+          </blockquote>
+          
+          <div class="mt-3 md:mt-4 inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-slate-800/80 border border-slate-700 max-w-2xl text-left shadow">
+            <i class="fa-solid fa-lightbulb text-amber-400 text-base flex-shrink-0"></i>
+            <p id="stage-tip-text" class="text-xs md:text-sm text-slate-200 font-medium">
+              Conseil d'accroche pour guider l'orateur.
+            </p>
+          </div>
+        </div>
+
+        <!-- Toastmasters Dual Chrono & Direct Manual Input -->
+        <div id="chrono-banner" class="flex-none rounded-2xl p-3 md:p-3.5 border-2 transition-all duration-300 bg-slate-900/95 border-slate-700 shadow-xl">
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-2 md:gap-5">
+            
+            <!-- Chrono Display & Lights -->
+            <div class="flex items-center gap-4 md:gap-5">
+              <div id="timer-display" class="font-mono timer-fluid font-black tracking-tight text-white drop-shadow">
+                0:00
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span id="light-dot" class="w-3.5 h-3.5 rounded-full bg-slate-600 transition-colors duration-300"></span>
+                  <span id="light-status-text" class="text-xs md:text-sm font-black uppercase tracking-wider text-slate-200">
+                    Chronomètre
+                  </span>
+                </div>
+                <p id="light-sub-text" class="text-xs text-slate-400 font-semibold mt-0.5" data-i18n="timer-legend">
+                  Vert 1:00 • Jaune 1:30 • Rouge 2:00 (Grâce 2:30)
+                </p>
+              </div>
+            </div>
+
+            <!-- Stopwatch buttons + Manual time override -->
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <button id="btn-timer-toggle" onclick="toggleTimer()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs md:text-sm flex items-center gap-2 shadow-lg transition">
+                <i id="timer-toggle-icon" class="fa-solid fa-play text-xs"></i>
+                <span id="timer-toggle-label" data-i18n="timer-btn-start">Start Chrono</span>
+              </button>
+              <button onclick="resetTimer()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition" title="Remise à zéro">
+                <i class="fa-solid fa-rotate-right text-sm"></i>
+              </button>
+
+              <span class="text-slate-600 text-sm hidden sm:inline">|</span>
+
+              <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700">
+                <label for="manual-time-input" class="text-xs text-slate-300 font-bold whitespace-nowrap" data-i18n="timer-manual-label">Temps officiel :</label>
+                <input id="manual-time-input" type="text" placeholder="ex: 1:45" 
+                  class="bg-transparent text-amber-400 font-mono font-black text-sm md:text-base w-18 focus:outline-none placeholder-slate-600 text-center"
+                  oninput="updateManualTime(this.value)">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Action / Save and Return -->
+        <div class="flex-none pt-2.5 border-t border-slate-800 flex items-center justify-between gap-3">
+          <button onclick="saveAndReturnToBoard()" class="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition">
+            <i class="fa-solid fa-check-double text-xs"></i>
+            <span data-i18n="stage-save-return-btn">Enregistrer &amp; Retourner au plateau</span>
+          </button>
+          <span class="text-xs text-slate-400 font-medium hidden sm:inline" data-i18n="stage-save-hint">
+            La carte sera marquée comme terminée avec le nom de l'orateur et son temps.
+          </span>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================== -->
+  <!-- MODAL OPTIONNEL : DÉROULEMENT / BIENVENUE / RÈGLES             -->
+  <!-- ============================================================== -->
+  <div id="modal-rules" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-50 text-slate-900 rounded-3xl max-w-5xl w-full p-6 md:p-8 shadow-2xl border border-slate-300 flex flex-col justify-between max-h-[94vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div>
+          <span class="text-xs md:text-sm font-black uppercase tracking-widest text-[#772432]">Toastmasters International • RÈGLES DU JEU</span>
+          <h2 class="text-2xl md:text-3xl lg:text-4xl font-black text-[#004165] mt-0.5">
+            Comment se déroulent les improvisations ?
+          </h2>
+        </div>
+        <button onclick="closeRulesModal()" class="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center transition" title="Fermer">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Introduction Message -->
+      <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 my-3 text-sm md:text-base text-amber-950 leading-relaxed shadow-sm">
+        <strong class="text-amber-900 text-base md:text-lg block mb-1">🎉 Bienvenue à tous nos membres et tout particulièrement à nos invités !</strong>
+        <p>
+          Les improvisations sont le moment idéal pour expérimenter sans pression, s'amuser, rire ensemble et découvrir ce que procure la scène en parlant devant un public bienveillant. Les invités sont prioritaires pour se prêter au jeu !
+        </p>
+      </div>
+
+      <!-- 3 Columns -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5 my-2">
+        <!-- Col 1 -->
+        <div class="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="h-2 bg-[#004165] rounded-full w-full mb-3"></div>
+            <h3 class="text-2xl md:text-3xl font-black text-[#004165] mb-1">1 à 2 minutes</h3>
+            <p class="text-xs md:text-sm font-black uppercase tracking-wider text-[#772432] mb-3">Durée de parole</p>
+            <p class="text-sm md:text-base text-slate-700 leading-relaxed">
+              Chaque orateur dispose d'un temps de parole de 1 à 2 minutes pour développer son idée en toute liberté.
+            </p>
+          </div>
+        </div>
+
+        <!-- Col 2 -->
+        <div class="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="h-2 bg-[#772432] rounded-full w-full mb-3"></div>
+            <h3 class="text-2xl md:text-3xl font-black text-[#004165] mb-1">Le Chrono</h3>
+            <p class="text-xs md:text-sm font-black uppercase tracking-wider text-[#772432] mb-3">Signaux lumineux</p>
+            <p class="text-sm md:text-base text-slate-700 leading-relaxed">
+              <span class="font-bold text-emerald-700">Vert à 1 min</span> • 
+              <span class="font-bold text-amber-600">Jaune à 1 min 30</span> • 
+              <span class="font-bold text-rose-700">Rouge à 2 min</span>. Vous avez 30 sec de grâce pour conclure !
+            </p>
+          </div>
+        </div>
+
+        <!-- Col 3 -->
+        <div class="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="h-2 bg-[#F2A900] rounded-full w-full mb-3"></div>
+            <h3 class="text-2xl md:text-3xl font-black text-[#004165] mb-1">Tout le monde</h3>
+            <p class="text-xs md:text-sm font-black uppercase tracking-wider text-[#772432] mb-3">Invités prioritaires</p>
+            <p class="text-sm md:text-base text-slate-700 leading-relaxed">
+              Invités en priorité et membres : c'est l'espace idéal pour s'exercer et partager un moment convivial sans jugement.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Button -->
+      <div class="pt-3 border-t border-slate-200 flex justify-end">
+        <button onclick="closeRulesModal()" class="px-8 py-3 rounded-2xl bg-[#004165] hover:bg-[#002f4a] text-white font-black text-sm md:text-base flex items-center gap-2 transition shadow-lg">
+          <span>Prêt ! Revenir au plateau de jeu</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL : LISTE DES VOTES & GOOGLE FORMS                         -->
+  <!-- ============================================================== -->
+  <div id="modal-summary" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b1f36] border-2 border-slate-700 text-slate-100 rounded-3xl max-w-5xl w-full p-6 shadow-2xl flex flex-col justify-between max-h-[94vh] overflow-hidden">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+        <div>
+          <h3 class="text-xl md:text-2xl font-black text-white flex items-center gap-3">
+            <i class="fa-solid fa-check-to-slot text-amber-400"></i>
+            <span>Récapitulatif des Improvisations pour les Votes</span>
+          </h3>
+          <p class="text-xs md:text-sm text-slate-400 mt-1 font-medium">
+            Liste avec calcul d'éligibilité (1:00 à 2:30) prête pour Google Forms.
+          </p>
+        </div>
+        <button onclick="closeSummaryModal()" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Editable Table -->
+      <div class="flex-1 overflow-y-auto my-3 pr-1">
+        <table class="w-full text-left text-sm md:text-base text-slate-200 border-collapse">
+          <thead class="bg-slate-900/95 text-slate-400 uppercase text-xs font-black sticky top-0 border-b border-slate-700">
+            <tr>
+              <th class="py-3 px-3 w-16 text-center" title="Ordre de passage">Ordre</th>
+              <th class="py-3 px-3 w-16 text-center">Sujet</th>
+              <th class="py-3 px-3">Nom de l'orateur(rice)</th>
+              <th class="py-3 px-3 w-36 text-center">Temps</th>
+              <th class="py-3 px-3 w-36 text-center">Éligibilité</th>
+            </tr>
+          </thead>
+          <tbody id="summary-table-body" class="divide-y divide-slate-800">
+            <!-- Dynamically populated in JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <button onclick="closeSummaryModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm md:text-base transition w-full sm:w-auto" data-i18n="votes-btn-close">
+            Fermer
+          </button>
+          <button onclick="confirmClearSession()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 font-bold text-sm md:text-base border border-slate-700 hover:border-rose-700/50 transition w-full sm:w-auto flex items-center justify-center gap-2" title="Effacer les noms et les temps enregistrés">
+            <i class="fa-solid fa-trash-can text-xs"></i>
+            <span data-i18n="btn-clear-speakers-modal">Effacer les orateurs</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          <button onclick="copyNamesAndOpenForm()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm md:text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition">
+            <i class="fa-solid fa-pen-to-square text-base"></i>
+            <span data-i18n="votes-btn-copy">Copier les noms &amp; Éditer Google Form</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL : VOTE EN DIRECT AVEC QR CODE & RÉSULTATS (GRAND ÉCRAN)   -->
+  <!-- ============================================================== -->
+  <div id="modal-live-vote" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
+    <div class="bg-[#0b1f36] border-2 border-emerald-500/50 text-slate-100 rounded-3xl max-w-5xl w-full p-6 shadow-2xl flex flex-col justify-between max-h-[94vh] overflow-hidden">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700 flex-none">
+        <div>
+          <span class="text-xs md:text-sm font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+            <i class="fa-solid fa-square-poll-vertical"></i> Toastmasters • Vote Électronique du Public
+          </span>
+          <h2 class="text-2xl md:text-3xl font-black text-white mt-0.5">
+            Votez pour la Meilleure Improvisation !
+          </h2>
+        </div>
+        <button onclick="closeLiveVotingModal()" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Main Split View: Left (QR Code) / Right (Live Tally) -->
+      <div class="flex-1 grid grid-cols-1 md:grid-cols-12 gap-5 my-4 overflow-y-auto pr-1">
+        
+        <!-- Left: QR Code Card -->
+        <div class="md:col-span-5 bg-slate-900 border border-slate-700 rounded-2xl p-5 flex flex-col items-center justify-center text-center shadow">
+          <div class="bg-white p-3.5 rounded-2xl shadow-xl border-4 border-amber-400 mb-3" id="qr-container"></div>
+          <p class="text-sm font-black text-amber-300 flex items-center gap-1.5 mb-1">
+            <i class="fa-solid fa-mobile-screen-button"></i> Scannez avec votre téléphone
+          </p>
+          <p class="text-xs text-slate-400 leading-tight">
+            Pointez l'appareil photo de votre smartphone pour voter en 1 clic pour votre orateur favori.
+          </p>
+          <div class="mt-3 pt-3 border-t border-slate-800 w-full flex items-center justify-between text-xs text-slate-400">
+            <span>Votants enregistrés :</span>
+            <span id="total-votes-badge" class="font-black font-mono text-base text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-lg border border-emerald-700/60">0</span>
+          </div>
+        </div>
+
+        <!-- Right: Realtime Leaderboard / Candidates -->
+        <div class="md:col-span-7 bg-slate-900/80 border border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+              <h3 class="text-sm md:text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-medal text-amber-400"></i> Orateurs Éligibles
+              </h3>
+              <span class="text-xs text-slate-400 font-semibold" id="voting-status-label">Vote en cours...</span>
+            </div>
+
+            <!-- List of Candidates with live progress bars -->
+            <div id="live-candidates-list" class="space-y-2.5 max-h-[300px] overflow-y-auto pr-1"></div>
+          </div>
+
+          <!-- Winner Reveal Banner -->
+          <div id="winner-banner" class="hidden mt-4 bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border-2 border-amber-400 rounded-2xl p-4 text-center animate-in zoom-in-95">
+            <span class="text-xs font-black uppercase tracking-widest text-amber-400 block mb-1">
+              🏆 GRAND GAGNANT DE LA SOIRÉE
+            </span>
+            <h4 id="winner-name-display" class="text-2xl md:text-3xl font-black text-white font-serif">
+              Nom de l'orateur
+            </h4>
+            <p id="winner-votes-display" class="text-xs text-amber-200 mt-1 font-semibold">
+              Félicitations pour cette superbe improvisation !
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Buttons -->
+      <div class="flex-none pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <button onclick="simulateAddDemoVote()" class="text-xs text-slate-500 hover:text-slate-300 transition flex items-center gap-1">
+          <i class="fa-solid fa-flask"></i> Tester un vote démo
+        </button>
+
+        <div class="flex items-center gap-3">
+          <button onclick="resetAllVotes()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-400 hover:text-rose-300 text-xs font-bold border border-slate-700 transition">
+            <i class="fa-solid fa-rotate-left mr-1"></i> Réinitialiser les votes
+          </button>
+          <button onclick="revealWinner()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-sm md:text-base flex items-center gap-2 shadow-lg shadow-amber-400/20 transition">
+            <i class="fa-solid fa-trophy text-slate-950"></i>
+            <span>Révéler le Vainqueur 🏆</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- VIEW 3 : ÉCRAN VOTANT MOBILE (POUR LES SMARTPHONES DU PUBLIC)  -->
+  <!-- ============================================================== -->
+  <section id="view-mobile-vote" class="hidden min-h-screen w-full bg-[#071322] text-slate-100 flex flex-col justify-between p-4 font-['Plus_Jakarta_Sans',sans-serif]">
+    <!-- Mobile Header -->
+    <div class="text-center py-4 border-b border-slate-800">
+      <span class="text-xs font-black uppercase tracking-widest text-amber-400">Toastmasters International</span>
+      <h1 class="text-2xl font-black text-white mt-1">Votez pour le meilleur orateur</h1>
+      <p id="mobile-theme-display" class="text-xs text-sky-300 mt-0.5">Session d'Improvisations</p>
+    </div>
+
+    <!-- Candidate List to vote -->
+    <div class="my-auto py-4 max-w-md mx-auto w-full">
+      <div id="mobile-has-voted" class="hidden text-center bg-emerald-950/80 border-2 border-emerald-500 rounded-3xl p-6 shadow-2xl">
+        <div class="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center text-2xl mx-auto mb-3 shadow-lg">
+          <i class="fa-solid fa-check"></i>
+        </div>
+        <h2 class="text-2xl font-black text-white mb-1">Vote enregistré !</h2>
+        <p class="text-sm text-emerald-200">Merci pour votre participation. Les résultats vont être affichés sur l'écran de la salle.</p>
+        <button onclick="allowVoteChange()" class="mt-4 px-4 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-slate-700">
+          Changer mon vote
+        </button>
+      </div>
+
+      <div id="mobile-voting-form" class="space-y-3">
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 text-center">
+          Choisissez l'orateur de votre choix :
+        </p>
+        <div id="mobile-candidates-container" class="space-y-2.5"></div>
+      </div>
+    </div>
+
+    <!-- Mobile Footer -->
+    <div class="text-center py-3 border-t border-slate-800 text-[11px] text-slate-500">
+      Table Topics Master • Toastmasters Club
+    </div>
+  </section>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    // --- BILINGUAL DICTIONARY (EN / FR) ---
+    const TRANSLATIONS = {
+      en: {
+        "badge-role": "Table Topics Master",
+        "theme-prefix": "Theme: ",
+        "btn-setup": "⚙️ Configure Topics",
+        "btn-rules": "📋 Rules & Guidelines",
+        "btn-votes": "Votes & Times",
+        "btn-clear-session": "Clear Session",
+        "btn-clear-speakers-modal": "Clear Speakers",
+        "board-title": "Pick a mystery number from 1 to 6!",
+        "board-duration-badge": "⏱ 1 to 2 minutes",
+        "board-sub": "Invite a speaker on stage, have them choose a number, then click their card to reveal the challenge.",
+        "board-rules-link": "View guidelines",
+        "board-welcome-note": "Welcome members and guests: enjoy the stage, have fun, and speak up!",
+        "board-open-summary": "Open summary list for voting",
+        "stage-back-btn": "Back to Board",
+        "stage-speaker-label": "Speaker:",
+        "stage-speaker-placeholder": "Enter speaker's name...",
+        "timer-legend": "Green 1:00 • Yellow 1:30 • Red 2:00 (Grace 2:30)",
+        "timer-btn-start": "Start Timer",
+        "timer-btn-pause": "Pause",
+        "timer-manual-label": "Official time:",
+        "stage-save-return-btn": "Save & Return to Board",
+        "stage-save-hint": "Card will be marked as finished with the speaker's name and speech time.",
+        "cfg-title": "Configure & Customize the 6 Topics",
+        "cfg-sub": "Preparation Space • Table Topics Master",
+        "cfg-theme-label": "Meeting Theme:",
+        "cfg-reset-btn": "Reset to Default Topics",
+        "cfg-clear-btn": "Clear Speakers",
+        "cfg-cancel-btn": "Cancel",
+        "cfg-save-btn": "Save & Lock for Presentation",
+        "rules-title": "How do Table Topics work?",
+        "rules-sub": "Toastmasters International • RULES OF THE GAME",
+        "rules-banner-title": "🎉 Welcome to our members and especially our guests!",
+        "rules-banner-text": "Table Topics is the perfect, supportive space to experiment, have fun, laugh together, and experience stage public speaking. Guests are given priority to participate!",
+        "rules-c1-title": "1 to 2 minutes",
+        "rules-c1-sub": "Speaking duration",
+        "rules-c1-text": "Each speaker has 1 to 2 minutes to express their thoughts freely.",
+        "rules-c2-title": "The Timer",
+        "rules-c2-sub": "Timing lights",
+        "rules-c2-text": "Green at 1:00 • Yellow at 1:30 • Red at 2:00. You have 30 seconds of grace to conclude!",
+        "rules-c3-title": "Everyone",
+        "rules-c3-sub": "Guests first",
+        "rules-c3-text": "Guests are warmly encouraged to volunteer, with no pressure and total kindness.",
+        "rules-btn-done": "Ready! Back to Gameboard",
+        "votes-modal-title": "Table Topics Voting & Timing Summary",
+        "votes-modal-sub": "Chronological order and eligibility (1:00 to 2:30) ready for Google Forms.",
+        "votes-col-order": "Order",
+        "votes-col-topic": "Topic",
+        "votes-col-name": "Speaker Name",
+        "votes-col-time": "Time",
+        "votes-col-eligibility": "Eligibility",
+        "votes-btn-copy": "Copy Names & Edit Google Form",
+        "votes-btn-close": "Close",
+        "btn-live-vote": "Live Vote (QR Code)",
+        "card-completed": "Completed",
+        "card-mystery": "Mystery",
+        "card-reveal": "Click to reveal",
+        "card-secret": "Secret Table Topic",
+        "card-speak": "Take the mic",
+        "card-modify": "Edit →",
+        "status-eligible": "Eligible",
+        "status-disqualified": "Out of time",
+        "toast-saved": "🔒 Topics saved & locked in Presentation Mode!",
+        "toast-cleared": "✓ Session cleared! Speakers, times and cards are reset for the next meeting.",
+        "toast-reset": "✓ Default topics restored!",
+        "toast-copied": "✓ {count} speaker(s) copied! In Google Form: click Option 1 and press Ctrl+V."
+      },
+      fr: {
+        "badge-role": "Meneur d'impro",
+        "theme-prefix": "Thème : ",
+        "btn-setup": "⚙️ Configurer les Sujets",
+        "btn-rules": "📋 Règles & Déroulement",
+        "btn-votes": "Votes & Temps",
+        "btn-clear-session": "Nettoyer séance",
+        "btn-clear-speakers-modal": "Effacer les orateurs",
+        "board-title": "Choisissez un numéro mystère de 1 à 6 !",
+        "board-duration-badge": "⏱ 1 à 2 minutes",
+        "board-sub": "Invitez l'orateur sur scène, demandez-lui un numéro, puis cliquez sur sa carte pour dévoiler son sujet.",
+        "board-rules-link": "Voir les consignes",
+        "board-welcome-note": "Bienvenue aux membres et aux invités : amusez-vous et prenez du plaisir au micro !",
+        "board-open-summary": "Ouvrir la liste récapitulative pour le vote",
+        "stage-back-btn": "Retour au plateau",
+        "stage-speaker-label": "Orateur(rice) :",
+        "stage-speaker-placeholder": "Entrez le prénom / nom de la personne...",
+        "timer-legend": "Vert 1:00 • Jaune 1:30 • Rouge 2:00 (Grâce 2:30)",
+        "timer-btn-start": "Start Chrono",
+        "timer-btn-pause": "Pause",
+        "timer-manual-label": "Temps officiel :",
+        "stage-save-return-btn": "Enregistrer & Retourner au plateau",
+        "stage-save-hint": "La carte sera marquée comme terminée avec le nom de l'orateur et son temps.",
+        "cfg-title": "Configurer & Personnaliser les 6 Sujets",
+        "cfg-sub": "Espace Préparation • Meneur d'improvisation",
+        "cfg-theme-label": "Thème de la réunion :",
+        "cfg-reset-btn": "Réinitialiser aux sujets initiaux",
+        "cfg-clear-btn": "Vider les orateurs",
+        "cfg-cancel-btn": "Annuler",
+        "cfg-save-btn": "Enregistrer & Verrouiller pour la Présentation",
+        "rules-title": "Comment se déroulent les improvisations ?",
+        "rules-sub": "Toastmasters International • RÈGLES DU JEU",
+        "rules-banner-title": "🎉 Bienvenue à tous nos membres et tout particulièrement à nos invités !",
+        "rules-banner-text": "Les improvisations sont le moment idéal pour expérimenter sans pression, s'amuser, rire ensemble et découvrir ce que procure la scène en parlant devant un public bienveillant. Les invités sont prioritaires pour se prêter au jeu !",
+        "rules-c1-title": "1 à 2 minutes",
+        "rules-c1-sub": "Durée de parole",
+        "rules-c1-text": "Chaque orateur dispose d'un temps de parole de 1 à 2 minutes pour développer son idée en toute liberté.",
+        "rules-c2-title": "Le Chrono",
+        "rules-c2-sub": "Signaux lumineux",
+        "rules-c2-text": "Vert à 1 min • Jaune à 1 min 30 • Rouge à 2 min. Vous avez 30 sec de grâce pour conclure !",
+        "rules-c3-title": "Tout le monde",
+        "rules-c3-sub": "Invités prioritaires",
+        "rules-c3-text": "Invités en priorité et membres : c'est l'espace idéal pour s'exercer et partager un moment convivial sans jugement.",
+        "rules-btn-done": "Prêt ! Revenir au plateau de jeu",
+        "votes-modal-title": "Récapitulatif des Improvisations pour les Votes",
+        "votes-modal-sub": "Ordre chronologique et éligibilité (1:00 à 2:30) prêts pour Google Form.",
+        "votes-col-order": "Ordre",
+        "votes-col-topic": "Sujet",
+        "votes-col-name": "Nom de l'orateur(rice)",
+        "votes-col-time": "Temps",
+        "votes-col-eligibility": "Éligibilité",
+        "votes-btn-copy": "Copier les noms & Éditer Google Form",
+        "votes-btn-close": "Fermer",
+        "btn-live-vote": "Lancer le Vote en direct",
+        "card-completed": "Réalisé",
+        "card-mystery": "Mystère",
+        "card-reveal": "Cliquez pour révéler",
+        "card-secret": "Sujet d'improvisation secret",
+        "card-speak": "Prendre le micro",
+        "card-modify": "Modifier →",
+        "status-eligible": "Éligible",
+        "status-disqualified": "Hors temps",
+        "toast-saved": "🔒 Sujets enregistrés & Verrouillés en Mode Présentation !",
+        "toast-cleared": "✓ Séance réinitialisée ! Orateurs, temps et cartes remis à zéro pour la prochaine réunion.",
+        "toast-reset": "✓ Thèmes par défaut restaurés !",
+        "toast-copied": "✓ {count} orateur(s) copiés ! Sur Google Form : cliquez sur l'Option 1 et faites Ctrl+V."
+      }
+    };
+
+    // --- DEFAULT TOPICS FOR BOTH LANGUAGES ---
+    const DEFAULT_TOPICS_EN = [
+      {
+        id: 1,
+        category: "The Icebreaker",
+        quote: "“If speech is silver and silence is gold, why are we all gathered here tonight to speak?”",
+        tip: "Share your humorous or philosophical take on our human desire to connect and communicate."
+      },
+      {
+        id: 2,
+        category: "The Story",
+        quote: "“Tell us about a time in your life when you truly should have stayed silent... or conversely, dared to speak up!”",
+        tip: "Share a true story, an awkward moment, a memorable achievement, or a funny twist."
+      },
+      {
+        id: 3,
+        category: "The Creative Challenge",
+        quote: "“Imagine that tomorrow morning, humanity wakes up having completely lost the ability to speak. How would you confess your love to someone?”",
+        tip: "Unleash your imagination: gestures, artistic clues, symbols, or funny workarounds!"
+      },
+      {
+        id: 4,
+        category: "The Debate",
+        quote: "“Do you believe great leaders are born natural speakers, or do they become one through deliberate practice?”",
+        tip: "Take a stand, illustrate with a vivid example, and persuade the audience."
+      },
+      {
+        id: 5,
+        category: "Roleplay",
+        quote: "“You are a lawyer defending the worst student in rhetoric school—someone who does nothing but stammer. Convince the court that this student is a genius.”",
+        tip: "Step into the shoes of the most passionate attorney and turn every flaw into a masterstroke!"
+      },
+      {
+        id: 6,
+        category: "The Inspirational",
+        quote: "“If you had the power to broadcast a single, brief message directly into everyone's head worldwide at once, what would you say?”",
+        tip: "Deliver an authentic, uplifting, and memorable message to humanity."
+      }
+    ];
+
+    const DEFAULT_TOPICS_FR = [
+      {
+        id: 1,
+        category: "L'Icebreaker",
+        quote: "« Si la parole est d'argent et le silence est d'or, pourquoi sommes-nous tous réunis ce soir pour parler ? »",
+        tip: "Partagez votre regard avec humour ou philosophie sur le besoin d'échanger et de s'exprimer."
+      },
+      {
+        id: 2,
+        category: "L'anecdote",
+        quote: "« Racontez-nous un moment de votre vie où vous auriez vraiment dû garder le silence... ou au contraire, oser parler ! »",
+        tip: "Racontez une histoire vécue, insolite, embarrassante ou touchante avec le sens du rebondissement."
+      },
+      {
+        id: 3,
+        category: "Le défi créatif",
+        quote: "« Imaginez que demain matin, l'humanité se réveille privée de la parole. Comment feriez-vous pour déclarer votre flamme à quelqu'un ? »",
+        tip: "Faites appel à votre imagination : mimez, décrivez des symboles, de l'art ou des ruses romantiques !"
+      },
+      {
+        id: 4,
+        category: "Le débat",
+        quote: "« Pensez-vous que les grands leaders naissent bons orateurs, ou le deviennent-ils à force de travail ? »",
+        tip: "Prenez parti avec clarté, citez un exemple marquant et défendez votre point de vue avec conviction."
+      },
+      {
+        id: 5,
+        category: "Le jeu de rôle",
+        quote: "« Vous êtes un avocat et vous devez défendre le pire élève de l'école de rhétorique, celui qui ne fait que bafouiller. Convainquez-nous qu'il a du génie. »",
+        tip: "Glissez-vous dans la robe de l'avocat le plus persuasif et retournez chaque défaut en coup de maître !"
+      },
+      {
+        id: 6,
+        category: "L'inspirant",
+        quote: "« Si vous aviez le pouvoir de faire passer un message unique et court que le monde entier entendrait en même temps dans sa tête, que diriez-vous ? »",
+        tip: "Délivrez un message universel, fort, sincère et percutant qui transcende toutes les frontières."
+      }
+    ];
+
+    // Language state: 'en' by default, or loaded from localStorage
+    let currentLang = 'en';
+    const STORAGE_KEY_LANG = "tm_table_topics_lang_v1";
+
+    function t(key) {
+      return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || key;
+    }
+
+    function setLanguage(lang) {
+      if (lang !== 'en' && lang !== 'fr') return;
+      const prevLang = currentLang;
+      currentLang = lang;
+      try {
+        localStorage.setItem(STORAGE_KEY_LANG, lang);
+      } catch (e) {}
+
+      updateLanguageButtons();
+      applyStaticTranslations();
+
+      if (prevLang !== lang) {
+        adaptTopicsToLanguage(lang);
+      } else {
+        updateThemeInHeader();
+        renderBoard();
+      }
+    }
+
+    function updateLanguageButtons() {
+      const btnEn = document.getElementById('lang-btn-en');
+      const btnFr = document.getElementById('lang-btn-fr');
+      if (currentLang === 'en') {
+        btnEn.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition bg-amber-400 text-slate-950 shadow";
+        btnFr.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white";
+      } else {
+        btnFr.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition bg-amber-400 text-slate-950 shadow";
+        btnEn.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white";
+      }
+    }
+
+    function applyStaticTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (TRANSLATIONS[currentLang][key]) {
+          el.innerHTML = TRANSLATIONS[currentLang][key];
+        }
+      });
+      const speakerInput = document.getElementById('speaker-input');
+      if (speakerInput) speakerInput.placeholder = t('stage-speaker-placeholder');
+    }
+
+    function adaptTopicsToLanguage(lang) {
+      const defaults = (lang === 'en') ? DEFAULT_TOPICS_EN : DEFAULT_TOPICS_FR;
+      const defaultTheme = (lang === 'en') ? "Practicing Public Speaking" : "Pratiquer la prise de parole";
+
+      TOPICS_DATA.forEach((topic, idx) => {
+        topic.category = defaults[idx].category;
+        topic.quote = defaults[idx].quote;
+        topic.tip = defaults[idx].tip;
+      });
+
+      meetingTheme = defaultTheme;
+      persistData();
+      updateThemeInHeader();
+      renderBoard();
+      if (!document.getElementById('modal-editor').classList.contains('hidden')) {
+        renderEditorCards();
+      }
+    }
+
+    function buildFreshTopics(lang) {
+      const source = (lang === 'en') ? DEFAULT_TOPICS_EN : DEFAULT_TOPICS_FR;
+      return source.map(item => ({
+        ...item,
+        speaker: "",
+        timeString: "",
+        timeSec: 0,
+        completed: false,
+        order: null
+      }));
+    }
+
+    let meetingTheme = "Practicing Public Speaking";
+    let TOPICS_DATA = buildFreshTopics('en');
+
+    // Persistent storage keys
+    const STORAGE_KEY_TOPICS = "tm_table_topics_data_v3";
+    const STORAGE_KEY_THEME = "tm_table_topics_theme_v3";
+    const STORAGE_KEY_VOTES = "tm_table_topics_votes_v1";
+
+    // Live Voting State
+    let votesTally = {};
+    const HAS_VOTED_KEY = "tm_has_voted_session";
+
+    function loadSavedVotes() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_VOTES);
+        votesTally = saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        votesTally = {};
+      }
+    }
+
+    function saveVotes() {
+      try {
+        localStorage.setItem(STORAGE_KEY_VOTES, JSON.stringify(votesTally));
+      } catch (e) {}
+    }
+
+    function getEligibleSpeakers() {
+      return getOrderedTopics().filter(t => t.speaker && t.speaker.trim() !== "");
+    }
+
+    // --- LIVE VOTING MODAL (PRESENTER SCREEN) ---
+    function openLiveVotingModal() {
+      loadSavedVotes();
+      generateQRCode();
+      renderLiveResults();
+      document.getElementById('winner-banner').classList.add('hidden');
+      document.getElementById('modal-live-vote').classList.remove('hidden');
+    }
+
+    function closeLiveVotingModal() {
+      document.getElementById('modal-live-vote').classList.add('hidden');
+    }
+
+    function generateQRCode() {
+      const container = document.getElementById('qr-container');
+      container.innerHTML = '';
+
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('vote', 'true');
+      const votingUrl = currentUrl.toString();
+
+      new QRCode(container, {
+        text: votingUrl,
+        width: 170,
+        height: 170,
+        colorDark: "#004165",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    function renderLiveResults() {
+      const container = document.getElementById('live-candidates-list');
+      container.innerHTML = '';
+
+      const candidates = getEligibleSpeakers();
+      const totalVotes = Object.values(votesTally).reduce((a, b) => a + b, 0);
+      document.getElementById('total-votes-badge').innerText = totalVotes;
+
+      if (candidates.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-6 text-slate-500 text-sm italic">
+            Aucun orateur n'a encore été enregistré.<br>Complétez au moins une carte pour ouvrir le vote.
+          </div>
+        `;
+        return;
+      }
+
+      candidates.forEach((cand) => {
+        const name = cand.speaker.trim();
+        const count = votesTally[name] || 0;
+        const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+
+        const row = document.createElement('div');
+        row.className = "bg-slate-950/70 border border-slate-800 rounded-xl p-3";
+        row.innerHTML = `
+          <div class="flex items-center justify-between text-xs md:text-sm font-black mb-1.5">
+            <span class="text-white flex items-center gap-2">
+              <span class="text-amber-400 font-mono">#${cand.id}</span>
+              <span>${name}</span>
+            </span>
+            <span class="font-mono text-emerald-400">${count} vote(s) (${pct}%)</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function simulateAddDemoVote() {
+      const candidates = getEligibleSpeakers();
+      if (candidates.length === 0) {
+        showToast("Enregistrez d'abord des orateurs pour voter !");
+        return;
+      }
+      const randomCand = candidates[Math.floor(Math.random() * candidates.length)].speaker.trim();
+      votesTally[randomCand] = (votesTally[randomCand] || 0) + 1;
+      saveVotes();
+      renderLiveResults();
+      playTone(520, 'sine', 0.1);
+    }
+
+    function resetAllVotes() {
+      if (confirm(currentLang === 'en' ? "Reset all recorded votes?" : "Remettre à zéro tous les votes enregistrés ?")) {
+        votesTally = {};
+        saveVotes();
+        renderLiveResults();
+        document.getElementById('winner-banner').classList.add('hidden');
+        showToast(currentLang === 'en' ? "Votes reset to zero." : "Votes remis à zéro.");
+      }
+    }
+
+    function revealWinner() {
+      const candidates = getEligibleSpeakers();
+      if (candidates.length === 0) return;
+
+      let topSpeaker = null;
+      let maxVotes = -1;
+
+      candidates.forEach(c => {
+        const count = votesTally[c.speaker.trim()] || 0;
+        if (count > maxVotes) {
+          maxVotes = count;
+          topSpeaker = c.speaker.trim();
+        }
+      });
+
+      if (!topSpeaker || maxVotes === 0) {
+        showToast(currentLang === 'en' ? "No votes have been cast yet!" : "Aucun vote n'a encore été enregistré !");
+        return;
+      }
+
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      }
+      playTone(600, 'triangle', 0.2);
+      setTimeout(() => playTone(880, 'triangle', 0.4), 150);
+
+      document.getElementById('winner-name-display').innerText = topSpeaker;
+      document.getElementById('winner-votes-display').innerText = `${maxVotes} vote(s) remporté(s) !`;
+      document.getElementById('winner-banner').classList.remove('hidden');
+    }
+
+    // --- MOBILE VOTER LOGIC (WHEN ?vote=true IS PRESENT) ---
+    function checkMobileMode() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('vote') === 'true') {
+        document.querySelector('header').classList.add('hidden');
+        document.querySelector('main').classList.add('hidden');
+        document.getElementById('view-mobile-vote').classList.remove('hidden');
+        setupMobileVotingView();
+        return true;
+      }
+      return false;
+    }
+
+    function setupMobileVotingView() {
+      loadSavedData();
+      loadSavedVotes();
+
+      document.getElementById('mobile-theme-display').innerText = meetingTheme;
+      const candidates = getEligibleSpeakers();
+      const container = document.getElementById('mobile-candidates-container');
+      container.innerHTML = '';
+
+      const hasVoted = localStorage.getItem(HAS_VOTED_KEY);
+      if (hasVoted) {
+        document.getElementById('mobile-has-voted').classList.remove('hidden');
+        document.getElementById('mobile-voting-form').classList.add('hidden');
+        return;
+      } else {
+        document.getElementById('mobile-has-voted').classList.add('hidden');
+        document.getElementById('mobile-voting-form').classList.remove('hidden');
+      }
+
+      if (candidates.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-slate-400 text-sm">
+            Les improvisations sont en cours.<br>Rechargez cette page dès que le meneur aura ouvert le vote !
+          </div>
+        `;
+        return;
+      }
+
+      candidates.forEach((cand) => {
+        const name = cand.speaker.trim();
+        const btn = document.createElement('button');
+        btn.onclick = () => submitMobileVote(name);
+        btn.className = "w-full p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-[#0b223c] border border-slate-700 hover:border-amber-400 text-left flex items-center justify-between transition shadow active:scale-[0.98]";
+        btn.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="w-8 h-8 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center">
+              #${cand.id}
+            </span>
+            <span class="text-base font-black text-white">${name}</span>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-500 text-xs"></i>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    function submitMobileVote(speakerName) {
+      loadSavedVotes();
+      votesTally[speakerName] = (votesTally[speakerName] || 0) + 1;
+      saveVotes();
+      localStorage.setItem(HAS_VOTED_KEY, speakerName);
+
+      document.getElementById('mobile-has-voted').classList.remove('hidden');
+      document.getElementById('mobile-voting-form').classList.add('hidden');
+    }
+
+    function allowVoteChange() {
+      const prev = localStorage.getItem(HAS_VOTED_KEY);
+      if (prev && votesTally[prev] > 0) {
+        votesTally[prev]--;
+        saveVotes();
+      }
+      localStorage.removeItem(HAS_VOTED_KEY);
+      setupMobileVotingView();
+    }
+
+    function loadSavedData() {
+      try {
+        const savedLang = localStorage.getItem(STORAGE_KEY_LANG);
+        if (savedLang === 'en' || savedLang === 'fr') {
+          currentLang = savedLang;
+        }
+        const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
+        if (savedTheme) {
+          meetingTheme = savedTheme;
+        } else {
+          meetingTheme = (currentLang === 'en') ? "Practicing Public Speaking" : "Pratiquer la prise de parole";
+        }
+        const savedTopics = localStorage.getItem(STORAGE_KEY_TOPICS);
+        if (savedTopics) {
+          const parsed = JSON.parse(savedTopics);
+          if (Array.isArray(parsed) && parsed.length === 6) {
+            TOPICS_DATA = parsed;
+          }
+        } else {
+          TOPICS_DATA = buildFreshTopics(currentLang);
+        }
+      } catch (err) {
+        console.warn("Storage load error:", err);
+      }
+      updateLanguageButtons();
+      applyStaticTranslations();
+      updateThemeInHeader();
+    }
+
+    function persistData() {
+      try {
+        localStorage.setItem(STORAGE_KEY_THEME, meetingTheme);
+        localStorage.setItem(STORAGE_KEY_TOPICS, JSON.stringify(TOPICS_DATA));
+      } catch (err) {
+        console.warn("Storage save error:", err);
+      }
+    }
+
+    function updateThemeInHeader() {
+      const el = document.getElementById('header-theme-display');
+      if (el) el.innerText = `« ${meetingTheme} »`;
+    }
+
+    let passageCounter = 0;
+
+    const CARD_THEMES = [
+      { text: "text-sky-400", border: "hover:border-sky-400", bgNum: "bg-sky-500" },
+      { text: "text-emerald-400", border: "hover:border-emerald-400", bgNum: "bg-emerald-500" },
+      { text: "text-amber-400", border: "hover:border-amber-400", bgNum: "bg-amber-500" },
+      { text: "text-indigo-400", border: "hover:border-indigo-400", bgNum: "bg-indigo-500" },
+      { text: "text-rose-400", border: "hover:border-rose-400", bgNum: "bg-rose-500" },
+      { text: "text-purple-400", border: "hover:border-purple-400", bgNum: "bg-purple-500" }
+    ];
+
+    let currentTopicIndex = 0;
+    let timerInterval = null;
+    let timerSeconds = 0;
+    let isTimerRunning = false;
+    let audioEnabled = true;
+    let audioCtx = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playTone(freq, type = 'sine', duration = 0.2) {
+      if (!audioEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {
+        console.warn("Audio unavailable", e);
+      }
+    }
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      const icon = document.getElementById('sound-icon');
+      if (audioEnabled) {
+        icon.className = "fa-solid fa-volume-high text-amber-400 text-xs";
+        playTone(550, 'sine', 0.15);
+      } else {
+        icon.className = "fa-solid fa-volume-xmark text-slate-500 text-xs";
+      }
+    }
+
+    function showView(viewName) {
+      document.getElementById('view-board').classList.add('hidden');
+      document.getElementById('view-stage').classList.add('hidden');
+
+      if (viewName === 'board') {
+        renderBoard();
+        document.getElementById('view-board').classList.remove('hidden');
+      } else if (viewName === 'stage') {
+        document.getElementById('view-stage').classList.remove('hidden');
+      }
+    }
+
+    function openRulesModal() {
+      document.getElementById('modal-rules').classList.remove('hidden');
+    }
+    function closeRulesModal() {
+      document.getElementById('modal-rules').classList.add('hidden');
+    }
+
+    function openSummaryModal() {
+      renderSummaryTable();
+      document.getElementById('modal-summary').classList.remove('hidden');
+    }
+    function closeSummaryModal() {
+      document.getElementById('modal-summary').classList.add('hidden');
+    }
+
+    function openEditorModal() {
+      document.getElementById('theme-input').value = meetingTheme;
+      renderEditorCards();
+      document.getElementById('modal-editor').classList.remove('hidden');
+    }
+
+    function closeEditorModal() {
+      document.getElementById('modal-editor').classList.add('hidden');
+    }
+
+    function renderEditorCards() {
+      const container = document.getElementById('editor-cards-container');
+      container.innerHTML = '';
+
+      TOPICS_DATA.forEach((topic, idx) => {
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 border border-slate-700/80 rounded-2xl p-3 flex flex-col justify-between shadow";
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800">
+              <span class="text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-lg">
+                ${currentLang === 'en' ? 'Card' : 'Carte'} #${topic.id}
+              </span>
+              <span class="text-[11px] text-slate-400 font-mono">${currentLang === 'en' ? 'Editable' : 'Modifiable'}</span>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="text-[11px] uppercase tracking-wider font-bold text-slate-400 block mb-0.5">${currentLang === 'en' ? 'Category:' : 'Catégorie :'}</label>
+                <input id="edit-cat-${idx}" type="text" value="${topic.category || ''}" placeholder="ex: The Story" 
+                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-sky-300 font-bold focus:outline-none focus:border-indigo-400">
+              </div>
+              <div>
+                <label class="text-[11px] uppercase tracking-wider font-bold text-slate-400 block mb-0.5">${currentLang === 'en' ? 'Question / Topic:' : 'Question / Sujet :'}</label>
+                <textarea id="edit-quote-${idx}" rows="3" placeholder="Topic question..." 
+                  class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white font-medium focus:outline-none focus:border-indigo-400 resize-none">${topic.quote || ''}</textarea>
+              </div>
+              <div>
+                <label class="text-[11px] uppercase tracking-wider font-bold text-slate-400 block mb-0.5">${currentLang === 'en' ? 'Hook / Speaking Tip:' : 'Conseil d\'accroche :'}</label>
+                <input id="edit-tip-${idx}" type="text" value="${topic.tip || ''}" placeholder="Advice for speaker..." 
+                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-amber-200/80 focus:outline-none focus:border-indigo-400">
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function saveEditorDataAndLock() {
+      const newTheme = document.getElementById('theme-input').value.trim();
+      if (newTheme) meetingTheme = newTheme;
+
+      TOPICS_DATA.forEach((topic, idx) => {
+        const catInput = document.getElementById(`edit-cat-${idx}`);
+        const quoteInput = document.getElementById(`edit-quote-${idx}`);
+        const tipInput = document.getElementById(`edit-tip-${idx}`);
+
+        if (catInput) topic.category = catInput.value.trim() || `Topic #${topic.id}`;
+        if (quoteInput) topic.quote = quoteInput.value.trim() || `Table Topic #${topic.id}`;
+        if (tipInput) topic.tip = tipInput.value.trim() || `Express your thoughts with confidence.`;
+      });
+
+      persistData();
+      updateThemeInHeader();
+      renderBoard();
+      closeEditorModal();
+      showToast(t("toast-saved"));
+    }
+
+    function resetToDefaultTopics() {
+      const msg = (currentLang === 'en') ? "Reset the 6 topics with default contents?" : "Réinitialiser les 6 sujets avec les thèmes par défaut ?";
+      if (confirm(msg)) {
+        TOPICS_DATA = buildFreshTopics(currentLang);
+        meetingTheme = (currentLang === 'en') ? "Practicing Public Speaking" : "Pratiquer la prise de parole";
+        persistData();
+        updateThemeInHeader();
+        renderEditorCards();
+        renderBoard();
+        showToast(t("toast-reset"));
+      }
+    }
+
+    function confirmClearSession() {
+      const msg = (currentLang === 'en')
+        ? "Clear all speaker names, times, notes, and progress to leave a clean board for the next meeting/person?"
+        : "Effacer tous les noms d'orateurs, les temps, les notes et remettre les 6 cartes à zéro pour la prochaine séance / prochaine personne ?";
+      
+      if (confirm(msg)) {
+        executeClearSession();
+      }
+    }
+
+    function executeClearSession() {
+      TOPICS_DATA.forEach(t => {
+        t.speaker = "";
+        t.timeString = "";
+        t.timeSec = 0;
+        t.completed = false;
+        t.order = null;
+      });
+      passageCounter = 0;
+      persistData();
+      renderBoard();
+      renderSummaryTable();
+
+      const speakerInput = document.getElementById('speaker-input');
+      if (speakerInput) speakerInput.value = "";
+      const manualTimeInput = document.getElementById('manual-time-input');
+      if (manualTimeInput) manualTimeInput.value = "";
+      resetTimer();
+
+      showToast(t("toast-cleared"));
+    }
+
+    function clearSpeakersOnly() {
+      confirmClearSession();
+      closeEditorModal();
+    }
+
+    function renderBoard() {
+      const grid = document.getElementById('cards-grid');
+      grid.innerHTML = '';
+      let doneCount = 0;
+
+      TOPICS_DATA.forEach((topic, idx) => {
+        if (topic.completed) doneCount++;
+        const theme = CARD_THEMES[idx];
+
+        const card = document.createElement('div');
+        card.className = "h-full w-full relative group cursor-pointer transition transform hover:scale-[1.01] focus:outline-none overflow-hidden";
+        card.onclick = () => selectCard(idx);
+
+        if (topic.completed) {
+          card.innerHTML = `
+            <div class="h-full rounded-2xl p-3 md:p-4 bg-slate-900/95 border-2 border-emerald-500/60 flex flex-col justify-between shadow-xl relative overflow-hidden">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black border border-emerald-500/40">
+                  <i class="fa-solid fa-check mr-1"></i> ${t('card-completed')}
+                </span>
+                <span class="w-7 h-7 rounded-lg bg-slate-800 text-amber-400 font-black flex items-center justify-center text-xs border border-slate-700">
+                  #${topic.id}
+                </span>
+              </div>
+              <div class="my-auto py-1 overflow-hidden">
+                <span class="text-xs uppercase font-extrabold text-slate-400 tracking-wider">${topic.category}</span>
+                <h4 class="card-title-fluid font-black text-white truncate mt-0.5">${topic.speaker || 'Speaker'}</h4>
+                <p class="text-xs text-slate-300 truncate italic mt-0.5 font-serif">${topic.quote}</p>
+              </div>
+              <div class="flex items-center justify-between text-xs text-slate-300 pt-1.5 border-t border-slate-800">
+                <span class="font-mono text-emerald-300 font-black text-sm"><i class="fa-regular fa-clock mr-1"></i>${topic.timeString || formatTime(topic.timeSec)}</span>
+                <span class="text-sky-300 font-bold group-hover:underline text-xs">${t('card-modify')}</span>
+              </div>
+            </div>
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="h-full rounded-2xl p-3 md:p-4 bg-gradient-to-b from-[#0c2440] to-[#07172b] border-2 border-sky-950/80 ${theme.border} hover:shadow-xl hover:shadow-amber-500/10 flex flex-col justify-between transition-all duration-200 relative overflow-hidden">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-black uppercase tracking-wider">
+                  ${t('card-mystery')} #${topic.id}
+                </span>
+                <span class="w-7 h-7 rounded-full bg-slate-800/90 text-amber-300 flex items-center justify-center text-xs border border-amber-400/30 shadow">
+                  <i class="fa-solid fa-lock text-[10px]"></i>
+                </span>
+              </div>
+
+              <div class="text-center my-auto py-1">
+                <div class="w-12 h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-2xl ${theme.bgNum} flex items-center justify-center text-white card-num-fluid font-serif font-black mx-auto mb-1.5 shadow-lg shadow-black/50 group-hover:scale-105 transition-transform">
+                  ${topic.id}
+                </div>
+                <p class="card-title-fluid font-black text-slate-100 group-hover:text-amber-400 transition-colors">
+                  ${t('card-reveal')}
+                </p>
+                <p class="text-xs text-slate-400 font-medium mt-0.5">${t('card-secret')}</p>
+              </div>
+
+              <div class="text-center pt-1">
+                <span class="inline-flex items-center gap-1.5 text-xs font-black ${theme.text} uppercase tracking-wider">
+                  <span>${t('card-speak')}</span>
+                  <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                </span>
+              </div>
+            </div>
+          `;
+        }
+
+        grid.appendChild(card);
+      });
+
+      document.getElementById('done-counter').innerText = doneCount;
+    }
+
+    function selectCard(index) {
+      currentTopicIndex = index;
+      const topic = TOPICS_DATA[index];
+
+      playTone(440, 'triangle', 0.1);
+      setTimeout(() => playTone(659, 'triangle', 0.2), 100);
+
+      document.getElementById('stage-badge-number').innerText = (currentLang === 'en' ? `Topic #${topic.id}` : `Sujet #${topic.id}`);
+      document.getElementById('stage-badge-category').innerText = topic.category;
+      document.getElementById('stage-category-label').innerText = topic.category;
+      document.getElementById('stage-topic-text').innerText = topic.quote;
+      document.getElementById('stage-tip-text').innerText = topic.tip;
+
+      document.getElementById('speaker-input').value = topic.speaker || "";
+      document.getElementById('manual-time-input').value = topic.timeString || (topic.timeSec > 0 ? formatTime(topic.timeSec) : "");
+
+      resetTimer();
+      if (topic.timeSec > 0) {
+        timerSeconds = topic.timeSec;
+        updateTimerDisplay();
+      }
+
+      showView('stage');
+    }
+
+    function updateCurrentSpeakerName(val) {
+      TOPICS_DATA[currentTopicIndex].speaker = val;
+    }
+
+    function updateManualTime(val) {
+      TOPICS_DATA[currentTopicIndex].timeString = val;
+    }
+
+    function saveAndReturnToBoard() {
+      const topic = TOPICS_DATA[currentTopicIndex];
+      const speakerVal = document.getElementById('speaker-input').value.trim();
+      const manualVal = document.getElementById('manual-time-input').value.trim();
+
+      topic.speaker = speakerVal;
+      topic.completed = true;
+
+      if (!topic.order) {
+        passageCounter++;
+        topic.order = passageCounter;
+      }
+
+      if (manualVal) {
+        topic.timeString = manualVal;
+        topic.timeSec = parseTimeStringToSeconds(manualVal);
+      } else if (timerSeconds > 0) {
+        topic.timeSec = timerSeconds;
+        topic.timeString = formatTime(timerSeconds);
+      } else {
+        topic.timeString = (currentLang === 'en' ? "Recorded" : "Enregistré");
+        topic.timeSec = 0;
+      }
+
+      persistData();
+      pauseTimer();
+      const msg = (currentLang === 'en')
+        ? `Topic #${topic.id} saved for ${topic.speaker || 'speaker'} (${topic.timeString})!`
+        : `Sujet #${topic.id} enregistré pour ${topic.speaker || 'l\'orateur'} (${topic.timeString}) !`;
+      showToast(msg);
+      showView('board');
+    }
+
+    function toggleTimer() {
+      if (isTimerRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    }
+
+    function startTimer() {
+      isTimerRunning = true;
+      document.getElementById('timer-toggle-icon').className = "fa-solid fa-pause text-xs";
+      document.getElementById('timer-toggle-label').innerText = t("timer-btn-pause");
+      document.getElementById('btn-timer-toggle').className = "px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs md:text-sm flex items-center gap-2 shadow-lg transition";
+
+      playTone(400, 'sine', 0.1);
+
+      timerInterval = setInterval(() => {
+        timerSeconds++;
+        updateTimerDisplay();
+        document.getElementById('manual-time-input').value = formatTime(timerSeconds);
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      isTimerRunning = false;
+      clearInterval(timerInterval);
+      document.getElementById('timer-toggle-icon').className = "fa-solid fa-play text-xs";
+      document.getElementById('timer-toggle-label').innerText = t("timer-btn-start");
+      document.getElementById('btn-timer-toggle').className = "px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs md:text-sm flex items-center gap-2 shadow-lg transition";
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      timerSeconds = 0;
+      updateTimerDisplay();
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function parseTimeStringToSeconds(str) {
+      if (!str) return 0;
+      const parts = str.trim().split(':');
+      if (parts.length === 2) {
+        const m = parseInt(parts[0], 10) || 0;
+        const s = parseInt(parts[1], 10) || 0;
+        return m * 60 + s;
+      }
+      const num = parseInt(str, 10);
+      return isNaN(num) ? 0 : num;
+    }
+
+    function updateTimerDisplay() {
+      const display = document.getElementById('timer-display');
+      display.innerText = formatTime(timerSeconds);
+
+      const banner = document.getElementById('chrono-banner');
+      const dot = document.getElementById('light-dot');
+      const statusText = document.getElementById('light-status-text');
+
+      banner.classList.remove('pulse-overtime');
+
+      if (timerSeconds < 60) {
+        banner.style.borderColor = "#334155";
+        banner.style.backgroundColor = "rgba(15, 23, 42, 0.95)";
+        dot.style.backgroundColor = "#64748b";
+        statusText.innerText = currentLang === 'en' ? "Running (< 1:00)" : "En cours (< 1:00)";
+        statusText.style.color = "#94a3b8";
+      } else if (timerSeconds < 90) {
+        banner.style.borderColor = "#10b981";
+        banner.style.backgroundColor = "rgba(6, 78, 59, 0.4)";
+        dot.style.backgroundColor = "#10b981";
+        statusText.innerText = currentLang === 'en' ? "Green Light (1:00 reached)" : "Feu Vert (1:00 atteint)";
+        statusText.style.color = "#34d399";
+        if (timerSeconds === 60) playTone(523, 'sine', 0.25);
+      } else if (timerSeconds < 120) {
+        banner.style.borderColor = "#f59e0b";
+        banner.style.backgroundColor = "rgba(120, 53, 15, 0.4)";
+        dot.style.backgroundColor = "#f59e0b";
+        statusText.innerText = currentLang === 'en' ? "Amber Light (1:30 reached)" : "Feu Jaune (1:30 atteint)";
+        statusText.style.color = "#fbbf24";
+        if (timerSeconds === 90) playTone(659, 'sine', 0.25);
+      } else if (timerSeconds <= 150) {
+        banner.style.borderColor = "#ef4444";
+        banner.style.backgroundColor = "rgba(127, 29, 29, 0.45)";
+        dot.style.backgroundColor = "#ef4444";
+        statusText.innerText = currentLang === 'en' ? "Red Light (2:00 - Wrap up!)" : "Feu Rouge (2:00 - Concluez !)";
+        statusText.style.color = "#f87171";
+        if (timerSeconds === 120) playTone(784, 'triangle', 0.35);
+      } else {
+        banner.style.borderColor = "#dc2626";
+        banner.style.backgroundColor = "rgba(153, 27, 27, 0.7)";
+        dot.style.backgroundColor = "#dc2626";
+        statusText.innerText = currentLang === 'en' ? "Overtime (> 2:30)" : "Temps dépassé (> 2:30)";
+        statusText.style.color = "#fca5a5";
+        banner.classList.add('pulse-overtime');
+        if (timerSeconds === 151) playTone(300, 'sawtooth', 0.5);
+      }
+    }
+
+    function getOrderedTopics() {
+      return [...TOPICS_DATA].sort((a, b) => {
+        if (a.order && b.order) return a.order - b.order;
+        if (a.order) return -1;
+        if (b.order) return 1;
+        return a.id - b.id;
+      });
+    }
+
+    function renderSummaryTable() {
+      const tbody = document.getElementById('summary-table-body');
+      tbody.innerHTML = '';
+
+      const orderedList = getOrderedTopics();
+
+      orderedList.forEach((topic) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition";
+
+        const sec = topic.timeSec > 0 ? topic.timeSec : parseTimeStringToSeconds(topic.timeString);
+        let statusBadge = `<span class="px-2.5 py-1 rounded-full bg-slate-800 text-slate-500 text-xs font-semibold">-</span>`;
+
+        if (sec > 0) {
+          if (sec >= 60 && sec <= 150) {
+            statusBadge = `<span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs md:text-sm font-black">${t('status-eligible')}</span>`;
+          } else {
+            statusBadge = `<span class="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs md:text-sm font-black">${t('status-disqualified')}</span>`;
+          }
+        }
+
+        const originalIndex = TOPICS_DATA.findIndex(t => t.id === topic.id);
+        const orderDisplay = topic.order ? `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center mx-auto text-xs shadow">${topic.order}</span>` : `<span class="text-slate-600 font-bold">-</span>`;
+
+        tr.innerHTML = `
+          <td class="py-3 px-3 text-center">${orderDisplay}</td>
+          <td class="py-3 px-3 text-center font-black text-sky-400 text-base md:text-lg">#${topic.id}</td>
+          <td class="py-3 px-3">
+            <input type="text" value="${topic.speaker || ''}" placeholder="${currentLang === 'en' ? 'Type speaker name...' : 'Taper le prénom / nom...'}" 
+              class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-1.5 text-sm md:text-base text-white font-bold focus:outline-none focus:border-sky-400"
+              onchange="updateSpeakerFromTable(${originalIndex}, this.value)">
+          </td>
+          <td class="py-3 px-3 text-center font-mono">
+            <input type="text" value="${topic.timeString || (topic.timeSec > 0 ? formatTime(topic.timeSec) : '')}" placeholder="ex: 1:45" 
+              class="w-24 bg-slate-900/80 border border-slate-700 rounded-xl px-2 py-1.5 text-sm md:text-base text-amber-400 text-center focus:outline-none focus:border-sky-400 font-black"
+              onchange="updateTimeFromTable(${originalIndex}, this.value)">
+          </td>
+          <td class="py-3 px-3 text-center">${statusBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateSpeakerFromTable(idx, val) {
+      TOPICS_DATA[idx].speaker = val;
+      if (val.trim()) {
+        TOPICS_DATA[idx].completed = true;
+        if (!TOPICS_DATA[idx].order) {
+          passageCounter++;
+          TOPICS_DATA[idx].order = passageCounter;
+        }
+      }
+      persistData();
+      renderBoard();
+      renderSummaryTable();
+    }
+
+    function updateTimeFromTable(idx, val) {
+      TOPICS_DATA[idx].timeString = val;
+      TOPICS_DATA[idx].timeSec = parseTimeStringToSeconds(val);
+      if (val.trim()) {
+        TOPICS_DATA[idx].completed = true;
+        if (!TOPICS_DATA[idx].order) {
+          passageCounter++;
+          TOPICS_DATA[idx].order = passageCounter;
+        }
+      }
+      persistData();
+      renderBoard();
+      renderSummaryTable();
+    }
+
+    const GOOGLE_FORM_EDIT_URL = "https://docs.google.com/forms/d/1PWpm9QSPtuPsymuOzH9FW06M3YdQPn1qAtjfVIPXwJ4/edit";
+
+    function copyNamesAndOpenForm() {
+      const ordered = getOrderedTopics().filter(t => t.speaker && t.speaker.trim() !== "");
+
+      if (ordered.length === 0) {
+        showToast(currentLang === 'en' ? "Please record at least one speaker first!" : "Veuillez d'abord enregistrer au moins un nom d'orateur !");
+        return;
+      }
+
+      const namesList = ordered.map(t => t.speaker.trim()).join('\n');
+
+      const textarea = document.createElement('textarea');
+      textarea.value = namesList;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      let copySuccess = false;
+      try {
+        copySuccess = document.execCommand('copy');
+      } catch (err) {
+        console.warn("Copy command failed", err);
+      }
+      document.body.removeChild(textarea);
+
+      window.open(GOOGLE_FORM_EDIT_URL, '_blank');
+
+      if (copySuccess) {
+        const tmpl = t("toast-copied");
+        showToast(tmpl.replace('{count}', ordered.length));
+      } else {
+        showToast(currentLang === 'en' ? "Form opened in edit mode!" : "Formulaire ouvert en mode édition !");
+      }
+    }
+
+    function toggleFullscreen() {
+      const docEl = document.documentElement;
+      const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+
+      if (!isFs) {
+        const requestFs = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+        if (requestFs) {
+          requestFs.call(docEl).then(() => {
+            updateFsIcon(true);
+          }).catch(() => {
+            showToast(currentLang === 'en' ? "Fullscreen blocked: press F11 on your keyboard!" : "Plein écran bloqué : appuyez sur F11 au clavier !");
+          });
+        } else {
+          showToast(currentLang === 'en' ? "Press F11 on your keyboard to enter fullscreen." : "Appuyez sur F11 sur votre clavier pour passer en plein écran.");
+        }
+      } else {
+        const exitFs = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+        if (exitFs) {
+          exitFs.call(document);
+          updateFsIcon(false);
+        }
+      }
+    }
+
+    function updateFsIcon(isFs) {
+      const icon = document.getElementById('fs-icon');
+      if (icon) {
+        icon.className = isFs ? "fa-solid fa-compress text-xs" : "fa-solid fa-expand text-xs";
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      updateFsIcon(!!document.fullscreenElement);
+    });
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-msg');
+      toastMsg.innerText = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+      }, 3500);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const isMobile = checkMobileMode();
+      if (isMobile) return;
+
+      loadSavedData();
+      const maxOrder = Math.max(0, ...TOPICS_DATA.map(t => t.order || 0));
+      passageCounter = maxOrder;
+
+      renderBoard();
+      showView('board');
+    });
+  </script>
+</body>
+</html>
