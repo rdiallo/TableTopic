@@ -1070,26 +1070,41 @@
       const displayName = document.getElementById('user-display-name');
       if (displayName) displayName.innerText = username;
 
-      // 1. Tenter de charger depuis l'API Redis Cloud
+      // 1. Check if the current device already has progress (e.g. speakers filled on laptop)
+      const hasLocalSpeakers = TOPICS_DATA.some(t => t.speaker && t.speaker.trim() !== "");
+
+      // 2. Tenter de charger depuis l'API Redis Cloud
       let cloudData = await fetchRedisSession(username);
 
-      // 2. Si non trouvé dans Redis, vérifier le stockage local
+      // 3. Fallback stockage local si indisponible
       if (!cloudData) {
         cloudData = getLocalRoomVault(username);
       }
 
-      if (cloudData) {
+      if (cloudData && Array.isArray(cloudData.topics) && cloudData.topics.some(t => t.speaker && t.speaker.trim() !== "")) {
+        // Cloud has existing speaker data -> pull it
         if (cloudData.theme) meetingTheme = cloudData.theme;
-        if (Array.isArray(cloudData.topics) && cloudData.topics.length >= 4) {
-          TOPICS_DATA = cloudData.topics;
-          totalCardsCount = cloudData.topics.length;
-          const selectEl = document.getElementById('card-count-select');
-          if (selectEl) selectEl.value = totalCardsCount.toString();
-        }
+        TOPICS_DATA = cloudData.topics;
+        totalCardsCount = cloudData.topics.length;
+        const selectEl = document.getElementById('card-count-select');
+        if (selectEl) selectEl.value = totalCardsCount.toString();
         if (cloudData.votes) votesTally = cloudData.votes;
         if (cloudData.roundId) currentRoundId = cloudData.roundId;
+      } else if (hasLocalSpeakers) {
+        // This device has speakers on screen -> push them to Redis so phones can see them!
+        await saveRedisSession(username, {
+          theme: meetingTheme,
+          topics: TOPICS_DATA,
+          cardsCount: totalCardsCount,
+          votes: votesTally,
+          roundId: getRoundId()
+        });
+      } else if (cloudData) {
+        if (cloudData.theme) meetingTheme = cloudData.theme;
+        if (Array.isArray(cloudData.topics)) TOPICS_DATA = cloudData.topics;
+        if (cloudData.votes) votesTally = cloudData.votes;
       } else {
-        // Nouvelle session : initialisation et sauvegarde dans Redis
+        // Brand new session: save current state
         await saveRedisSession(username, {
           theme: meetingTheme,
           topics: TOPICS_DATA,
