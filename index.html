@@ -11,7 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <!-- Confetti & Lightweight Realtime Client -->
+  <!-- QR Code Generator, Confetti & Lightweight Realtime Client -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -79,7 +80,7 @@
       </div>
     </div>
 
-    <!-- Right Controls -->
+    <!-- Right Controls: Cleaner layout with no duplicate summary button -->
     <div class="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
       <!-- Language Switcher (EN / FR) -->
       <div class="flex items-center bg-slate-900 border border-slate-700/80 rounded-lg p-0.5 shadow-sm">
@@ -91,7 +92,7 @@
         </button>
       </div>
 
-      <!-- Edit / Setup Topics Button (~30% smaller, single clean icon) -->
+      <!-- Edit / Setup Topics Button -->
       <button onclick="openEditorModal()" class="px-2.5 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 text-indigo-200 text-xs md:text-xs font-bold flex items-center gap-1.5 border border-indigo-700/60 transition shadow-sm" title="Configure topics and theme">
         <i class="fa-solid fa-sliders text-indigo-400 text-xs"></i>
         <span data-i18n="btn-setup">Topics</span>
@@ -103,16 +104,10 @@
         <span data-i18n="btn-rules">Rules</span>
       </button>
 
-      <!-- View: Voting & Times Summary -->
-      <button onclick="openSummaryModal()" class="px-2.5 py-1.5 rounded-lg bg-[#772432]/90 hover:bg-[#772432] text-white text-xs md:text-xs font-bold flex items-center gap-1.5 transition border border-rose-500/30 shadow-sm" title="Review speeches, times, and export">
-        <i class="fa-solid fa-clock text-amber-300 text-xs"></i>
-        <span><span data-i18n="btn-votes">Times</span> (<span id="done-counter">0</span>/6)</span>
-      </button>
-
-      <!-- Direct Live Vote Screen Button -->
-      <button onclick="openLiveVotingModal()" class="px-2.5 py-1.5 rounded-lg bg-emerald-700/90 hover:bg-emerald-600 text-white text-xs md:text-xs font-extrabold flex items-center gap-1.5 transition shadow-sm" title="Live voting tally & winner reveal">
-        <i class="fa-solid fa-square-poll-vertical text-amber-300 text-xs"></i>
-        <span data-i18n="btn-live-vote">Live Vote</span>
+      <!-- Live Vote & QR Code Button -->
+      <button onclick="openLiveVotingModal()" class="px-2.5 py-1.5 rounded-lg bg-emerald-700/90 hover:bg-emerald-600 text-white text-xs md:text-xs font-extrabold flex items-center gap-1.5 transition shadow-sm" title="Display QR Code & Live Vote">
+        <i class="fa-solid fa-qrcode text-amber-300 text-xs"></i>
+        <span data-i18n="btn-live-vote">Live Vote (QR)</span>
       </button>
 
       <!-- Quick Reset / Clear Session for next meeting -->
@@ -232,12 +227,14 @@
         <!-- Generated dynamically in JS -->
       </div>
 
-      <!-- Bottom Bar -->
+      <!-- Bottom Bar: Sole access to the Voting & Times Summary table -->
       <div class="flex-none pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs md:text-sm text-slate-400">
         <span class="font-medium"><i class="fa-solid fa-sparkles text-amber-400 mr-2"></i> <span data-i18n="board-welcome-note">Bienvenue aux membres et aux invités : amusez-vous et prenez du plaisir au micro !</span></span>
-        <button onclick="openSummaryModal()" class="text-sky-300 hover:text-sky-200 font-bold text-sm md:text-base transition flex items-center gap-1.5">
+        <button onclick="openSummaryModal()" class="px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-[#772432] text-amber-300 hover:text-white font-bold text-xs md:text-sm transition flex items-center gap-2 border border-slate-700/80 hover:border-rose-400/50 shadow-sm">
+          <i class="fa-solid fa-clipboard-list text-amber-400 text-xs"></i>
           <span data-i18n="board-open-summary">Ouvrir la liste récapitulative pour le vote</span>
-          <i class="fa-solid fa-arrow-right text-xs"></i>
+          <span class="font-mono text-slate-400 text-xs">(<span id="done-counter">0</span>/6)</span>
+          <i class="fa-solid fa-arrow-right text-[10px]"></i>
         </button>
       </div>
     </section>
@@ -497,10 +494,10 @@
   </div>
 
   <!-- ============================================================== -->
-  <!-- MODAL : VOTE EN DIRECT & RÉSULTATS (GRAND ÉCRAN - SANS QR)     -->
+  <!-- MODAL : VOTE EN DIRECT (QR CODE SUR PROJECTEUR / RÉSULTATS CACHÉS) -->
   <!-- ============================================================== -->
   <div id="modal-live-vote" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
-    <div class="bg-[#0b1f36] border-2 border-emerald-500/50 text-slate-100 rounded-3xl max-w-5xl w-full p-6 shadow-2xl flex flex-col justify-between max-h-[94vh] overflow-hidden">
+    <div class="bg-[#0b1f36] border-2 border-emerald-500/50 text-slate-100 rounded-3xl max-w-4xl w-full p-5 md:p-7 shadow-2xl flex flex-col justify-between max-h-[95vh] overflow-hidden">
       
       <!-- Header -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-700 flex-none">
@@ -509,13 +506,13 @@
             <i class="fa-solid fa-square-poll-vertical"></i> Toastmasters • Vote Électronique du Public
           </span>
           <h2 class="text-2xl md:text-3xl font-black text-white mt-0.5">
-            Votez pour la Meilleure Improvisation !
+            Scannez le QR Code pour Voter !
           </h2>
         </div>
 
-        <!-- Realtime Live Tally Pill in Header Corner -->
+        <!-- Realtime Live Tally Pill in Header Corner (Safe to show to the room) -->
         <div class="flex items-center gap-3">
-          <div class="bg-gradient-to-r from-emerald-950 to-slate-900 border-2 border-emerald-500/70 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-lg">
+          <div class="bg-gradient-to-r from-emerald-950 to-slate-900 border-2 border-emerald-500/70 px-4 py-1.5 rounded-2xl flex items-center gap-3 shadow-lg">
             <div class="text-right">
               <span class="text-[10px] uppercase font-black tracking-wider text-emerald-400 block leading-none">Total Votants</span>
               <span class="text-xs text-slate-400 font-semibold">1 personne = 1 vote</span>
@@ -531,53 +528,80 @@
         </div>
       </div>
 
-      <!-- Main Direct View: Realtime Leaderboard / Candidates -->
-      <div class="flex-1 my-4 overflow-y-auto pr-1">
-        <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between h-full">
-          <div>
-            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
-              <h3 class="text-sm md:text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <i class="fa-solid fa-medal text-amber-400"></i> Orateurs Éligibles &amp; Résultats en direct
-              </h3>
-              <div class="flex items-center gap-3">
-                <span class="flex items-center gap-1.5 text-xs text-slate-400">
-                  <span id="sync-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Sync Cloud active</span>
-                </span>
-                <span class="text-xs text-emerald-400 font-semibold" id="voting-status-label">En attente des votes de la salle...</span>
-              </div>
-            </div>
+      <!-- MAIN PUBLIC PROJECTOR SCREEN: BIG QR CODE (No spoilers on projector) -->
+      <div id="public-qr-view" class="flex-1 my-3 flex flex-col items-center justify-center text-center p-4 bg-slate-900/80 border border-slate-700/80 rounded-2xl shadow-inner overflow-hidden">
+        <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 text-amber-300 text-xs md:text-sm font-black uppercase tracking-wider mb-3 border border-amber-500/40">
+          <i class="fa-solid fa-camera"></i> Pointez votre appareil photo sur le QR code
+        </span>
 
-            <!-- List of Candidates with live progress bars -->
-            <div id="live-candidates-list" class="space-y-3 max-h-[380px] overflow-y-auto pr-1"></div>
-          </div>
+        <!-- High-Contrast Big QR Code Display -->
+        <div class="p-4 bg-white rounded-3xl shadow-2xl border-4 border-emerald-500/50 inline-flex items-center justify-center">
+          <div id="qrcode-container" class="w-[200px] h-[200px] md:w-[240px] md:h-[240px] flex items-center justify-center"></div>
+        </div>
 
-          <!-- Winner Reveal Banner -->
-          <div id="winner-banner" class="hidden mt-4 bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border-2 border-amber-400 rounded-2xl p-4 text-center animate-in zoom-in-95">
-            <span class="text-xs font-black uppercase tracking-widest text-amber-400 block mb-1">
-              🏆 GRAND GAGNANT DE LA SOIRÉE
+        <div class="mt-4 max-w-md w-full">
+          <p class="text-xs text-slate-300 font-medium">Ou ouvrez ce lien directement sur votre smartphone :</p>
+          <p class="text-xs text-sky-400 font-mono mt-0.5 truncate" id="vote-direct-url-text">https://.../?vote=true</p>
+          <div class="mt-2 flex items-center justify-center gap-3">
+            <button onclick="copyVotingLink()" class="text-xs text-slate-300 hover:text-white font-bold bg-slate-800 px-3 py-1 rounded-lg border border-slate-700">
+              <i class="fa-regular fa-copy mr-1"></i> Copier le lien
+            </button>
+            <span class="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
+              <span id="sync-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Synchronisation active
             </span>
-            <h4 id="winner-name-display" class="text-2xl md:text-3xl font-black text-white font-serif">
-              Nom de l'orateur
-            </h4>
-            <p id="winner-votes-display" class="text-xs text-amber-200 mt-1 font-semibold">
-              Félicitations pour cette superbe improvisation !
-            </p>
           </div>
+        </div>
+      </div>
+
+      <!-- CONFIDENTIAL LEADERBOARD & RESULTS VIEW (Hidden by default for presenter privacy) -->
+      <div id="confidential-results-view" class="hidden flex-1 my-3 bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex-col justify-between overflow-hidden shadow-lg">
+        <div class="flex-1 flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800 flex-none">
+            <h3 class="text-sm md:text-base font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-lock text-amber-400"></i> Vue Confidentielle : Classement &amp; Détail des Votes
+            </h3>
+            <span class="text-xs text-slate-400 font-mono italic">
+              Non visible par le public tant que vous ne basculez pas sur cet écran
+            </span>
+          </div>
+
+          <!-- List of Candidates with live progress bars -->
+          <div id="live-candidates-list" class="space-y-2.5 overflow-y-auto pr-1 flex-1"></div>
+        </div>
+
+        <!-- Winner Reveal Banner -->
+        <div id="winner-banner" class="hidden mt-3 bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border-2 border-amber-400 rounded-2xl p-3.5 text-center animate-in zoom-in-95 flex-none">
+          <span class="text-xs font-black uppercase tracking-widest text-amber-400 block mb-0.5">
+            🏆 GRAND GAGNANT DE LA SOIRÉE
+          </span>
+          <h4 id="winner-name-display" class="text-2xl md:text-3xl font-black text-white font-serif">
+            Nom de l'orateur
+          </h4>
+          <p id="winner-votes-display" class="text-xs text-amber-200 mt-0.5 font-semibold">
+            Félicitations pour cette superbe improvisation !
+          </p>
         </div>
       </div>
 
       <!-- Footer Buttons -->
       <div class="flex-none pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <button onclick="simulateAddDemoVote()" class="text-xs text-slate-500 hover:text-slate-300 transition flex items-center gap-1">
-          <i class="fa-solid fa-flask"></i> Tester un vote démo
-        </button>
+        <!-- Presenter-only Toggle to reveal/hide detailed results -->
+        <div class="flex items-center gap-2">
+          <button id="btn-toggle-results" onclick="toggleResultsView()" class="px-3.5 py-2 rounded-xl bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 hover:text-white text-xs md:text-sm font-black border border-indigo-700/60 transition flex items-center gap-2 shadow">
+            <i id="icon-toggle-results" class="fa-solid fa-eye text-amber-400"></i>
+            <span id="label-toggle-results">Voir les résultats en direct</span>
+          </button>
+          <button onclick="simulateAddDemoVote()" class="text-[11px] text-slate-500 hover:text-slate-300 transition flex items-center gap-1">
+            <i class="fa-solid fa-flask"></i> Test démo
+          </button>
+        </div>
 
         <div class="flex items-center gap-3">
           <button onclick="resetAllVotes()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-400 hover:text-rose-300 text-xs font-bold border border-slate-700 transition" title="Réinitialiser les votes et permettre à tous les téléphones de revoter">
             <i class="fa-solid fa-rotate-left mr-1"></i> Réinitialiser les votes
           </button>
-          <button onclick="revealWinner()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-sm md:text-base flex items-center gap-2 shadow-lg shadow-amber-400/20 transition">
+          <button onclick="revealWinner()" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-amber-400/20 transition">
             <i class="fa-solid fa-trophy text-slate-950"></i>
             <span>Révéler le Vainqueur 🏆</span>
           </button>
@@ -639,8 +663,7 @@
         "theme-prefix": "Theme: ",
         "btn-setup": "Topics",
         "btn-rules": "Rules",
-        "btn-votes": "Times",
-        "btn-live-vote": "Live Vote",
+        "btn-live-vote": "Live Vote (QR)",
         "btn-clear-session": "Clear",
         "btn-clear-speakers-modal": "Clear Speakers",
         "board-title": "Pick a mystery number from 1 to 6!",
@@ -706,8 +729,7 @@
         "theme-prefix": "Thème : ",
         "btn-setup": "Sujets",
         "btn-rules": "Règles",
-        "btn-votes": "Temps",
-        "btn-live-vote": "Vote en direct",
+        "btn-live-vote": "Vote en direct (QR)",
         "btn-clear-session": "Nettoyer",
         "btn-clear-speakers-modal": "Effacer les orateurs",
         "board-title": "Choisissez un numéro mystère de 1 à 6 !",
@@ -879,11 +901,11 @@
       const btnEn = document.getElementById('lang-btn-en');
       const btnFr = document.getElementById('lang-btn-fr');
       if (currentLang === 'en') {
-        btnEn.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition bg-amber-400 text-slate-950 shadow";
-        btnFr.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white";
+        btnEn.className = "px-2 py-0.5 rounded text-[11px] md:text-xs font-black transition bg-amber-400 text-slate-950 shadow";
+        btnFr.className = "px-2 py-0.5 rounded text-[11px] md:text-xs font-black transition text-slate-400 hover:text-white";
       } else {
-        btnFr.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition bg-amber-400 text-slate-950 shadow";
-        btnEn.className = "px-2.5 py-1 rounded-lg text-xs md:text-sm font-black transition text-slate-400 hover:text-white";
+        btnFr.className = "px-2 py-0.5 rounded text-[11px] md:text-xs font-black transition bg-amber-400 text-slate-950 shadow";
+        btnEn.className = "px-2 py-0.5 rounded text-[11px] md:text-xs font-black transition text-slate-400 hover:text-white";
       }
     }
 
@@ -943,6 +965,7 @@
     const DEFAULT_CLUB_SESSION = "tm_global_club_session";
     let currentSessionId = DEFAULT_CLUB_SESSION;
     let currentRoundId = 1;
+    let qrCodeInstance = null;
 
     function getRoundId() {
       let r = localStorage.getItem(STORAGE_KEY_ROUND_ID);
@@ -1052,7 +1075,44 @@
       return getOrderedTopics().filter(t => t.speaker && t.speaker.trim() !== "");
     }
 
-    // --- LIVE VOTING SCREEN (PRESENTER SCREEN - NO QR NEEDED) ---
+    function getVotingUrl() {
+      const origin = window.location.origin;
+      const pathname = window.location.pathname;
+      return `${origin}${pathname}?vote=true&session=${encodeURIComponent(currentSessionId)}&round=${encodeURIComponent(currentRoundId)}`;
+    }
+
+    function generateQrCode() {
+      const container = document.getElementById('qrcode-container');
+      if (!container || typeof QRCode === 'undefined') return;
+      container.innerHTML = '';
+
+      const voteUrl = getVotingUrl();
+      const directText = document.getElementById('vote-direct-url-text');
+      if (directText) directText.innerText = voteUrl;
+
+      const size = window.innerWidth < 768 ? 190 : 230;
+      qrCodeInstance = new QRCode(container, {
+        text: voteUrl,
+        width: size,
+        height: size,
+        colorDark: "#06101c",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    function copyVotingLink() {
+      const voteUrl = getVotingUrl();
+      navigator.clipboard.writeText(voteUrl).then(() => {
+        showToast(currentLang === 'en' ? "Voting link copied to clipboard!" : "Lien de vote copié dans le presse-papier !");
+      }).catch(() => {
+        showToast(voteUrl);
+      });
+    }
+
+    // --- LIVE VOTING SCREEN (PRESENTER SCREEN WITH DEDICATED QR & CONFIDENTIAL RESULTS) ---
+    let isResultsViewActive = false;
+
     function openLiveVotingModal() {
       getRoundId();
       loadSavedVotes();
@@ -1061,6 +1121,12 @@
       } else {
         broadcastSpeakersToPhones();
       }
+      
+      // Always reset to the clean public QR view when opening
+      isResultsViewActive = false;
+      applyResultsViewToggle();
+
+      generateQrCode();
       renderLiveResults();
       document.getElementById('winner-banner').classList.add('hidden');
       document.getElementById('modal-live-vote').classList.remove('hidden');
@@ -1070,9 +1136,38 @@
       document.getElementById('modal-live-vote').classList.add('hidden');
     }
 
+    function toggleResultsView() {
+      isResultsViewActive = !isResultsViewActive;
+      applyResultsViewToggle();
+      if (isResultsViewActive) {
+        renderLiveResults();
+      }
+    }
+
+    function applyResultsViewToggle() {
+      const qrView = document.getElementById('public-qr-view');
+      const resultsView = document.getElementById('confidential-results-view');
+      const btnIcon = document.getElementById('icon-toggle-results');
+      const btnLabel = document.getElementById('label-toggle-results');
+
+      if (isResultsViewActive) {
+        qrView.classList.add('hidden');
+        resultsView.classList.remove('hidden');
+        resultsView.classList.add('flex');
+        btnIcon.className = "fa-solid fa-qrcode text-amber-400";
+        btnLabel.innerText = currentLang === 'en' ? "Show QR Code" : "Afficher le QR Code";
+      } else {
+        resultsView.classList.add('hidden');
+        resultsView.classList.remove('flex');
+        qrView.classList.remove('hidden');
+        btnIcon.className = "fa-solid fa-eye text-amber-400";
+        btnLabel.innerText = currentLang === 'en' ? "View Live Results" : "Voir les résultats en direct";
+      }
+    }
+
     function renderLiveResults(triggerPing = false) {
       const container = document.getElementById('live-candidates-list');
-      container.innerHTML = '';
+      if (container) container.innerHTML = '';
 
       const candidates = getEligibleSpeakers();
       const totalVotes = Object.values(votesTally).reduce((a, b) => a + b, 0);
@@ -1087,9 +1182,11 @@
         }
       }
 
+      if (!container) return;
+
       if (candidates.length === 0) {
         container.innerHTML = `
-          <div class="text-center py-10 text-slate-500 text-base italic">
+          <div class="text-center py-10 text-slate-500 text-sm md:text-base italic">
             Aucun orateur n'a encore été enregistré sur l'ordinateur.<br>Complétez au moins une carte pour ouvrir le vote.
           </div>
         `;
@@ -1102,17 +1199,17 @@
         const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
 
         const row = document.createElement('div');
-        row.className = "bg-slate-950/80 border border-slate-800 rounded-2xl p-4";
+        row.className = "bg-slate-950/80 border border-slate-800 rounded-2xl p-3";
         row.innerHTML = `
-          <div class="flex items-center justify-between text-sm md:text-base font-black mb-2">
-            <span class="text-white flex items-center gap-2.5">
-              <span class="text-amber-400 font-mono text-base">#${cand.id}</span>
+          <div class="flex items-center justify-between text-xs md:text-sm font-black mb-1.5">
+            <span class="text-white flex items-center gap-2">
+              <span class="text-amber-400 font-mono text-sm">#${cand.id}</span>
               <span>${name}</span>
             </span>
             <span class="font-mono text-emerald-400">${count} vote(s) (${pct}%)</span>
           </div>
-          <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
-            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-3 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+          <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
           </div>
         `;
         container.appendChild(row);
@@ -1147,6 +1244,9 @@
         // Advance to a new unique voting round
         currentRoundId = Date.now().toString();
         localStorage.setItem(STORAGE_KEY_ROUND_ID, currentRoundId);
+
+        // Regenerate QR Code for the fresh round
+        generateQrCode();
 
         // Broadcast real-time reset signal directly to phones without requiring any scan
         if (mqttClient && mqttClient.connected) {
@@ -1183,6 +1283,10 @@
         return;
       }
 
+      // Automatically switch to confidential/results view to present the winner
+      isResultsViewActive = true;
+      applyResultsViewToggle();
+
       if (typeof confetti === 'function') {
         confetti({
           particleCount: 120,
@@ -1198,7 +1302,7 @@
       document.getElementById('winner-banner').classList.remove('hidden');
     }
 
-    // --- MOBILE VOTER LOGIC (FOR PERMANENT VOTING URL) ---
+    // --- MOBILE VOTER LOGIC ---
     let mobileSpeakersList = [];
     let mobileRoundId = "1";
 
@@ -1240,7 +1344,6 @@
         });
 
         mqttClient.on('connect', () => {
-          // Listen to speakers synchronization and reset commands
           mqttClient.subscribe(`toastmasters/session/${sessionId}/speakers_sync`);
           mqttClient.subscribe(`toastmasters/session/${sessionId}/control`);
         });
@@ -1673,7 +1776,8 @@
         grid.appendChild(card);
       });
 
-      document.getElementById('done-counter').innerText = doneCount;
+      const doneCounter = document.getElementById('done-counter');
+      if (doneCounter) doneCounter.innerText = doneCount;
     }
 
     function selectCard(index) {
