@@ -1,0 +1,70 @@
+Où stocker les données liées au nom unique de session ?
+Pour que les sessions (thème, cartes de 4 à 8 sujets, notes et votes) soient rattachées à un nom unique et accessibles depuis n'importe où, voici l'analyse des solutions techniques possibles sur Vercel.
+1. La situation actuelle : localStorage du navigateur
+Comment cela fonctionne actuellement
+Les données sont stockées dans la mémoire locale (localStorage) de l'ordinateur où vous préparez la réunion.
+Avantages :
+100% gratuit, aucun compte tiers ni serveur à configurer.
+Zéro risque de panne réseau pendant la préparation.
+Limite majeure :
+Si vous préparez vos questions sur votre PC personnel à la maison et que vous voulez ouvrir votre session sur le PC de projection de la salle, les données ne seront pas là car elles sont restées dans le navigateur de votre maison.
+2. Option "Fichier JSON" sur Vercel ?
+Pourquoi un simple fichier .json sur Vercel NE FONCTIONNE PAS pour sauvegarder
+Sur Vercel, votre code est déployé en lecture seule (Serverless).
+Une application ne peut pas faire un fs.writeFileSync('sessions.json') pour modifier un fichier sur Vercel.
+Dès que la fonction s'éteint ou qu'un nouveau visiteur arrive, le serveur est recréé à neuf : tout ce qui a été écrit dans un fichier local sur le disque temporaire est immédiatement effacé.
+3. La solution reine : Base de données Redis / Key-Value (Vercel KV / Upstash Redis)
+C'est la solution idéale pour votre besoin exact (clé = nom unique, valeur = session, et expiration automatique).
+Pourquoi Redis est parfait ici :
+Nature Clé-Valeur :
+Votre clé est simplement le nom unique : session:paris-toastmasters
+La valeur est l'objet JSON (thème, questions 1 à 8, statut des votes).
+Expiration native 7 jours (TTL / Time To Live) :
+Redis possède une commande native d'auto-destruction :
+SET session:paris-toastmasters '{...}' EX 604800 # 604800 sec = 7 jours
+
+
+Au bout de 7 jours sans activité, Redis supprime la clé tout seul. Zéro script de nettoyage à gérer.
+Multi-écrans & Multi-clubs :
+Vous préparez vos improvisations sur votre smartphone ou laptop personnel le mardi.
+Le jeudi soir, sur l'ordinateur de la salle, vous tapez votre nom unique : Redis vous renvoie immédiatement vos cartes prêtes.
+Coût :
+100% Gratuit avec Upstash Redis (disponible directement dans l'onglet Storage de votre console Vercel en 1 clic). Le palier gratuit permet 10 000 requêtes/jour (ce qui est largement suffisant pour des dizaines de clubs par semaine).
+4. Tableau Comparatif des Solutions
+Solution
+Multi-appareils (Maison ➔ Salle)
+Auto-expiration 7 jours
+Complexité de mise en place
+Coût
+localStorage (Actuel)
+❌ Non (lié au navigateur)
+⚠️ Manuelle via code JS
+⭐ Très simple (déjà prêt)
+Gratuit
+Fichier .json local
+❌ Impossible sur Vercel
+❌
+❌ Non viable
+-
+Upstash Redis (Recommandé)
+Oui (Cloud instantané)
+Native (EX 7 days)
+⭐⭐ Simple (1 API route Vercel)
+100% Gratuit
+Supabase / PostgreSQL
+Oui
+⚠️ Nécessite un cron job
+⭐⭐⭐ Plus lourd pour du simple JSON
+Gratuit
+
+5. Comment mettre en place Upstash Redis sur Vercel
+Si vous souhaitez franchir le pas pour que le nom de room fonctionne depuis n'importe quel ordinateur :
+Allez sur votre dashboard Vercel > onglet Storage > cliquez sur Create Database > choisissez KV / Upstash Redis.
+Vercel vous donne deux variables d'environnement (KV_REST_API_URL et KV_REST_API_TOKEN).
+On ajoute un petit endpoint léger /api/session (moins de 30 lignes de code) :
+GET /api/session?name=mon-club ➔ Renvoie le contenu.
+POST /api/session ➔ Enregistre le JSON avec un délai d'expiration de 7 jours (EX: 604800).
+DELETE /api/session?name=mon-club ➔ Supprime la session quand vous cliquez sur "Fermer session".
+En résumé :
+Si chaque meneur d'improvisation amène toujours son propre ordinateur portable branché en HDMI : la solution actuelle avec localStorage suffit amplement et ne demande aucune configuration serveur.
+Si vous voulez pouvoir préparer à l'avance chez vous et rouvrir la session sur l'ordinateur du club ou un autre appareil, Upstash Redis est la solution la plus rapide, propre et gratuite.

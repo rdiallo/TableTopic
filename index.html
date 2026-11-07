@@ -16,145 +16,84 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-  <!-- Google Identity Services for standard Web OAuth fallback -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    // --- GESTION DU STOCKAGE HYBRIDE (API REDIS VERCEL + LOCALSTORAGE) ---
+    const SESSION_EXPIRY_DAYS = 7;
+    const SESSION_EXPIRY_MS = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+    const VAULT_PREFIX = "tm_room_vault_";
 
-  <!-- Firebase SDK for Google Authentication & Cloud Sync -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { 
-      getAuth, 
-      GoogleAuthProvider, 
-      signInWithPopup, 
-      signOut, 
-      onAuthStateChanged
-    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { 
-      getFirestore, 
-      doc, 
-      getDoc, 
-      setDoc 
-    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    function sanitizeRoomName(name) {
+      return (name || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    }
 
-    // Read saved custom firebase config if user configured one, or default runtime
-    let localCustomFirebase = null;
-    try {
-      const storedConfig = localStorage.getItem("tm_custom_firebase_config");
-      if (storedConfig) {
-        localCustomFirebase = JSON.parse(storedConfig);
-      }
-    } catch (e) {}
-
-    const firebaseConfig = localCustomFirebase || (typeof __firebase_config !== 'undefined' 
-      ? JSON.parse(__firebase_config) 
-      : null);
-
-    let app = null, auth = null, db = null;
-    if (firebaseConfig && firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("Dummy")) {
+    // Récupération locale (fallback immédiat)
+    function getLocalRoomVault(roomName) {
+      if (!roomName) return null;
       try {
-        app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
+        const raw = localStorage.getItem(VAULT_PREFIX + roomName);
+        if (!raw) return null;
+        const vault = JSON.parse(raw);
+        if (Date.now() - (vault.lastActive || 0) > SESSION_EXPIRY_MS) {
+          localStorage.removeItem(VAULT_PREFIX + roomName);
+          return null;
+        }
+        return vault;
       } catch (e) {
-        console.warn("Firebase initialization error:", e);
+        return null;
       }
     }
 
-    // Expose Firebase & Auth tools to the global window
-    window.TM_AUTH = {
-      isConfigured: () => !!(auth && firebaseConfig),
-      loginWithGoogle: async () => {
-        // If Firebase is configured with active keys
-        if (auth) {
-          try {
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({ prompt: 'select_account' });
-            const result = await signInWithPopup(auth, provider);
-            window.handleUserSignedIn(result.user);
-            return;
-          } catch (err) {
-            console.error("Firebase Auth Error:", err);
-            // Handle specific Google/Firebase error codes clearly
-            if (err.code === 'auth/unauthorized-domain') {
-              window.showAuthErrorModal("Authorized Domain Missing", 
-                `Your current domain (<b>${window.location.hostname}</b>) is not authorized in Firebase Console.<br><br>Go to <b>Firebase Console > Authentication > Settings > Authorized domains</b> and add <code>${window.location.hostname}</code>.`);
-              return;
-            } else if (err.code === 'auth/popup-blocked') {
-              window.showToast("Popup was blocked by your browser. Please allow popups for this site.");
-              return;
-            } else if (err.code === 'auth/popup-closed-by-user') {
-              window.showToast("Sign-in cancelled.");
-              return;
-            } else {
-              window.showAuthErrorModal("Sign-in Error (" + (err.code || "unknown") + ")", err.message);
-              return;
-            }
-          }
-        }
+    function saveLocalRoomVault(roomName, data) {
+      if (!roomName) return;
+      try {
+        const existing = getLocalRoomVault(roomName) || {};
+        const vault = {
+          ...existing,
+          ...data,
+          room: roomName,
+          lastActive: Date.now()
+        };
+        localStorage.setItem(VAULT_PREFIX + roomName, JSON.stringify(vault));
+      } catch (e) {}
+    }
 
-        // Fallback: Prompt user to set their credentials or use simple club email profile
-        window.openAuthSetupModal();
-      },
-      logout: async () => {
-        if (auth) {
-          try { await signOut(auth); } catch (e) {}
-        }
-        localStorage.removeItem("tm_custom_profile_user");
-        window.handleUserSignedOut();
-      },
-      saveCloudTopics: async (userId, data) => {
-        if (!db || !userId) return;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        try {
-          const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'topics_data', 'current');
-          await setDoc(userDocRef, { ...data, updatedAt: Date.now() });
-        } catch (err) {
-          console.warn("Cloud save error:", err);
-        }
-      },
-      loadCloudTopics: async (userId) => {
-        if (!db || !userId) return null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        try {
-          const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'topics_data', 'current');
-          const snap = await getDoc(userDocRef);
-          return snap.exists() ? snap.data() : null;
-        } catch (err) {
-          console.warn("Cloud load error:", err);
-          return null;
-        }
+    // Requêtes vers l'API Vercel Redis (/api/session)
+    async function fetchRedisSession(roomName) {
+      try {
+        const res = await fetch(`/api/session?room=${encodeURIComponent(roomName)}`);
+        if (!res.ok) return null;
+        const json = await res.json();
+        return json.exists ? json.data : null;
+      } catch (e) {
+        console.warn("API Redis injoignable, bascule locale.", e);
+        return null;
       }
-    };
+    }
 
-    if (auth) {
-      onAuthStateChanged(auth, (user) => {
-        if (user) {
-          window.handleUserSignedIn(user);
-        } else {
-          // Check local custom profile fallback
-          const localProfile = localStorage.getItem("tm_custom_profile_user");
-          if (localProfile) {
-            try {
-              window.handleUserSignedIn(JSON.parse(localProfile));
-            } catch (e) {}
-          }
-        }
-      });
-    } else {
-      // Check if user previously logged in via email profile
-      setTimeout(() => {
-        const localProfile = localStorage.getItem("tm_custom_profile_user");
-        if (localProfile) {
-          try {
-            window.handleUserSignedIn(JSON.parse(localProfile));
-          } catch (e) {}
-        }
-      }, 300);
+    async function saveRedisSession(roomName, data) {
+      saveLocalRoomVault(roomName, data); // Toujours sauvegarder en local d'abord
+      try {
+        await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: roomName, data })
+        });
+      } catch (e) {
+        console.warn("Échec sauvegarde Redis API", e);
+      }
+    }
+
+    async function deleteRedisSession(roomName) {
+      localStorage.removeItem(VAULT_PREFIX + roomName);
+      try {
+        await fetch(`/api/session?room=${encodeURIComponent(roomName)}`, {
+          method: 'DELETE'
+        });
+      } catch (e) {}
     }
   </script>
 
   <style>
-    /* Strict 100vh layout with zero scrollbars for projector displays */
     html, body {
       height: 100%;
       max-height: 100vh;
@@ -179,7 +118,6 @@
       animation: votePing 0.4s ease-out;
     }
 
-    /* Fluid typography tuned for projectors & room reading without overflow */
     .quote-fluid {
       font-size: clamp(1.4rem, 2.3vw, 2.5rem);
       line-height: 1.35;
@@ -217,22 +155,25 @@
       </div>
     </div>
 
-    <!-- Right Controls: Cleaner layout with no duplicate summary button -->
+    <!-- Right Controls -->
     <div class="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
-      <!-- Google Auth Button & Profile Badge -->
+      <!-- Session Room Identifier Pill -->
       <div id="auth-container" class="flex items-center">
-        <!-- Not signed in button -->
-        <button id="btn-login-google" onclick="window.TM_AUTH.loginWithGoogle()" class="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition shadow-sm" title="Sign in with your Google account to save custom topics">
-          <i class="fa-brands fa-google text-amber-400 text-xs"></i>
-          <span class="hidden sm:inline">Sign In</span>
+        <button id="btn-login-google" onclick="openRoomLoginModal()" class="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-bold flex items-center gap-1.5 border border-amber-500/40 transition shadow-sm" title="Ouvrir ou créer une session synchronisée avec Redis (7 jours)">
+          <i class="fa-solid fa-key text-amber-400 text-xs"></i>
+          <span class="hidden sm:inline">Ma Session (Redis Cloud)</span>
         </button>
 
-        <!-- Signed in profile pill -->
-        <div id="user-profile-pill" class="hidden items-center gap-2 bg-slate-900 border border-amber-400/50 px-2 py-1 rounded-xl shadow-sm">
-          <img id="user-avatar" src="" alt="Avatar" class="w-5 h-5 rounded-full border border-amber-400/60 object-cover">
-          <span id="user-display-name" class="text-xs font-black text-amber-300 max-w-[90px] truncate hidden md:inline">User</span>
-          <button onclick="window.TM_AUTH.logout()" class="text-slate-400 hover:text-rose-400 text-[11px] font-bold ml-1 transition" title="Sign out">
-            <i class="fa-solid fa-right-from-bracket"></i>
+        <div id="user-profile-pill" class="hidden items-center gap-2 bg-slate-900 border border-emerald-500/50 px-2 py-1 rounded-xl shadow-sm">
+          <div class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center justify-center text-[10px] font-black">
+            <i class="fa-solid fa-cloud"></i>
+          </div>
+          <div class="flex flex-col leading-tight max-w-[120px]">
+            <span id="user-display-name" class="text-xs font-black text-emerald-300 truncate" title="Nom de votre session">Session</span>
+            <span class="text-[9px] text-slate-400 font-mono">Redis Cloud • 7j</span>
+          </div>
+          <button onclick="confirmCloseAndSignOut()" class="text-slate-400 hover:text-rose-400 text-xs font-bold ml-1 transition" title="Fermer la session et quitter">
+            <i class="fa-solid fa-power-off"></i>
           </button>
         </div>
       </div>
@@ -290,72 +231,57 @@
     <span id="toast-msg">Notification</span>
   </div>
 
-  <!-- ================= AUTH CONFIG / ERROR MODAL ================= -->
+  <!-- ================= AUTH / UNIQUE SECRET ROOM MODAL ================= -->
   <div id="modal-auth-help" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-[#0b1f36] border-2 border-amber-500/60 text-slate-100 rounded-3xl max-w-xl w-full p-6 shadow-2xl flex flex-col justify-between max-h-[90vh] overflow-hidden">
+    <div class="bg-[#0b1f36] border-2 border-amber-500/60 text-slate-100 rounded-3xl max-w-md w-full p-6 shadow-2xl flex flex-col justify-between max-h-[90vh] overflow-hidden">
       <div class="flex items-center justify-between pb-3 border-b border-slate-700">
-        <h3 id="auth-modal-title" class="text-xl font-black text-amber-300 flex items-center gap-2">
-          <i class="fa-solid fa-user-shield"></i> Sign In Setup
+        <h3 id="auth-modal-title" class="text-lg md:text-xl font-black text-amber-300 flex items-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-up text-amber-400"></i> Synchronisation Redis Cloud
         </h3>
         <button onclick="closeAuthModal()" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <div class="my-4 space-y-4 overflow-y-auto text-sm text-slate-300 pr-1">
-        <div id="auth-modal-message" class="bg-slate-900 border border-slate-700 rounded-2xl p-4 text-xs md:text-sm leading-relaxed">
-          Sign in links your custom table topics and voting URL directly to your name/email so no other club interferes with your sessions.
+      <div class="my-4 space-y-3.5 text-sm text-slate-300">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-3.5 text-xs leading-relaxed text-slate-300">
+          <p class="font-bold text-amber-300 mb-1">☁️ Synchronisé entre vos appareils :</p>
+          En entrant un nom unique (ex: <i>paris-speech-nov</i>) :
+          <ul class="list-disc pl-4 mt-2 space-y-1 text-slate-400 text-[11px]">
+            <li>Vos cartes et votre thème sont enregistrés dans <b>Redis</b>.</li>
+            <li>Vous pouvez préparer chez vous et rouvrir la session sur le PC de la salle en retapant le même nom.</li>
+            <li>Auto-expiration après <b>7 jours</b> d'inactivité.</li>
+          </ul>
         </div>
 
-        <!-- Quick 1-click Email profile without needing Google Cloud project -->
-        <div class="bg-indigo-950/50 border border-indigo-700/60 rounded-2xl p-4">
+        <div>
           <label class="font-bold text-amber-300 block mb-1 text-xs uppercase tracking-wider">
-            Quick Sign-In with Email / Presenter Name :
+            Nom unique de votre Room / Club :
           </label>
-          <div class="flex gap-2 mt-2">
-            <input id="quick-email-input" type="email" placeholder="e.g. john.doe@gmail.com" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-400">
-            <button onclick="saveQuickEmailProfile()" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs md:text-sm transition">
-              Use Account
-            </button>
+          <div class="relative">
+            <i class="fa-solid fa-key absolute left-3 top-3 text-slate-500 text-xs"></i>
+            <input id="unique-room-input" type="text" placeholder="ex: tm-paris-etoile-nov" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-amber-400 placeholder:text-slate-600">
           </div>
-          <p class="text-[11px] text-slate-400 mt-2">
-            Instantly generates your permanent workspace: <code class="text-sky-300 font-mono">?session=tm_usr_...</code> for static slide decks.
-          </p>
+          <p id="room-validation-error" class="text-xs text-rose-400 font-bold mt-1.5 hidden"></p>
         </div>
-
-        <!-- Optional: Paste Firebase Config -->
-        <details class="bg-slate-900 border border-slate-800 rounded-2xl p-3 cursor-pointer">
-          <summary class="font-bold text-xs text-slate-400 hover:text-white flex items-center justify-between">
-            <span>⚙️ Advanced: Use Custom Firebase Credentials</span>
-            <i class="fa-solid fa-chevron-down text-xs"></i>
-          </summary>
-          <div class="mt-3 space-y-2">
-            <p class="text-[11px] text-slate-400">
-              Paste your Firebase Web configuration JSON below to enable automatic Google OAuth Popup and cloud Firestore database saving:
-            </p>
-            <textarea id="firebase-config-input" rows="4" placeholder='{"apiKey": "AIza...", "authDomain": "...", "projectId": "..."}' class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-mono text-emerald-300 focus:outline-none focus:border-amber-400"></textarea>
-            <button onclick="saveCustomFirebaseConfig()" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white border border-slate-600">
-              Save Firebase Config & Reload
-            </button>
-          </div>
-        </details>
       </div>
 
-      <div class="pt-3 border-t border-slate-800 flex justify-end">
-        <button onclick="closeAuthModal()" class="px-5 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs">
-          Close
+      <div class="pt-3 border-t border-slate-800 flex justify-between items-center gap-2">
+        <button onclick="closeAuthModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs">
+          Annuler
+        </button>
+        <button onclick="handleClaimRoom()" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs md:text-sm flex items-center gap-1.5 shadow transition">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i>
+          <span>Charger la Session</span>
         </button>
       </div>
     </div>
   </div>
 
-  <!-- ============================================================== -->
-  <!-- MODAL : ÉDITION & CONFIGURATION DES SUJETS (MODE MENEUR)       -->
-  <!-- ============================================================== -->
+  <!-- ================= MODAL : CONFIGURATION DES SUJETS ================= -->
   <div id="modal-editor" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
     <div class="bg-[#0b1f36] border-2 border-indigo-500/50 text-slate-100 rounded-3xl max-w-6xl w-full p-5 md:p-7 shadow-2xl flex flex-col justify-between max-h-[95vh] overflow-hidden">
       
-      <!-- Modal Header -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-700 flex-none">
         <div>
           <span class="text-xs md:text-sm font-black uppercase tracking-widest text-indigo-400 flex items-center gap-2">
@@ -413,8 +339,8 @@
             Annuler
           </button>
           <button onclick="saveEditorDataAndLock()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-black text-sm md:text-base flex items-center gap-2 shadow-lg shadow-indigo-900/40 transition">
-            <i class="fa-solid fa-lock text-amber-300"></i>
-            <span data-i18n="cfg-save-btn">Enregistrer &amp; Verrouiller pour la Présentation</span>
+            <i class="fa-solid fa-cloud-arrow-up text-amber-300"></i>
+            <span data-i18n="cfg-save-btn">Enregistrer dans Redis &amp; Verrouiller</span>
           </button>
         </div>
       </div>
@@ -425,12 +351,8 @@
   <!-- ================= MAIN SCREEN CONTAINER (100% FIT) ================= -->
   <main class="flex-1 w-full max-w-[1700px] mx-auto p-3 md:p-5 flex flex-col justify-between overflow-hidden">
 
-    <!-- ======================================================= -->
-    <!-- VIEW 1 : LE PLATEAU DES CARTES (AFFICHÉ PAR DÉFAUT)     -->
-    <!-- ======================================================= -->
+    <!-- VIEW 1 : LE PLATEAU DES CARTES -->
     <section id="view-board" class="h-full flex flex-col justify-between overflow-hidden">
-      
-      <!-- Sub-Header / Instructions with Large Text -->
       <div class="flex-none flex items-center justify-between pb-3">
         <div>
           <h2 class="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-tight flex items-center gap-3">
@@ -450,12 +372,10 @@
         </div>
       </div>
 
-      <!-- DYNAMIC CARDS GRID (FITS PERFECTLY WITHOUT SCROLL) -->
-      <div id="cards-grid" class="flex-1 grid grid-cols-3 grid-rows-2 gap-3 md:gap-5 my-1">
-        <!-- Generated dynamically in JS -->
-      </div>
+      <!-- DYNAMIC CARDS GRID -->
+      <div id="cards-grid" class="flex-1 grid grid-cols-3 grid-rows-2 gap-3 md:gap-5 my-1"></div>
 
-      <!-- Bottom Bar: Sole access to the Voting & Times Summary table -->
+      <!-- Bottom Bar -->
       <div class="flex-none pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs md:text-sm text-slate-400">
         <span class="font-medium"><i class="fa-solid fa-sparkles text-amber-400 mr-2"></i> <span data-i18n="board-welcome-note">Bienvenue aux membres et aux invités : amusez-vous et prenez du plaisir au micro !</span></span>
         <button onclick="openSummaryModal()" class="px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-[#772432] text-amber-300 hover:text-white font-bold text-xs md:text-sm transition flex items-center gap-2 border border-slate-700/80 hover:border-rose-400/50 shadow-sm">
@@ -467,12 +387,8 @@
       </div>
     </section>
 
-    <!-- ======================================================= -->
-    <!-- VIEW 2 : ÉCRAN D'AFFICHAGE DU SUJET & CHRONO (GÉANT)   -->
-    <!-- ======================================================= -->
+    <!-- VIEW 2 : ÉCRAN D'AFFICHAGE DU SUJET & CHRONO -->
     <section id="view-stage" class="hidden h-full flex flex-col justify-between overflow-hidden">
-      
-      <!-- Top Action Bar -->
       <div class="flex-none flex items-center justify-between pb-2">
         <button onclick="showView('board')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-black text-sm md:text-base flex items-center gap-2 border border-slate-700 transition">
           <i class="fa-solid fa-arrow-left"></i>
@@ -489,9 +405,7 @@
         </div>
       </div>
 
-      <!-- Topic Card with Massive Projection Typography -->
       <div class="flex-1 bg-gradient-to-b from-[#0b223c] to-[#051322] border-2 border-slate-700 rounded-3xl p-4 md:p-6 shadow-2xl flex flex-col justify-between overflow-hidden">
-        
         <!-- Speaker Input Field -->
         <div class="flex-none flex items-center gap-3 bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-2">
           <i class="fa-solid fa-user-tie text-amber-400 text-base md:text-lg"></i>
@@ -518,11 +432,9 @@
           </div>
         </div>
 
-        <!-- Toastmasters Dual Chrono & Direct Manual Input -->
+        <!-- Toastmasters Chrono -->
         <div id="chrono-banner" class="flex-none rounded-2xl p-3 md:p-3.5 border-2 transition-all duration-300 bg-slate-900/95 border-slate-700 shadow-xl">
           <div class="flex flex-col sm:flex-row items-center justify-between gap-2 md:gap-5">
-            
-            <!-- Chrono Display & Lights -->
             <div class="flex items-center gap-4 md:gap-5">
               <div id="timer-display" class="font-mono timer-fluid font-black tracking-tight text-white drop-shadow">
                 0:00
@@ -540,7 +452,6 @@
               </div>
             </div>
 
-            <!-- Stopwatch buttons + Manual time override -->
             <div class="flex items-center gap-2.5 flex-wrap">
               <button id="btn-timer-toggle" onclick="toggleTimer()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs md:text-sm flex items-center gap-2 shadow-lg transition">
                 <i id="timer-toggle-icon" class="fa-solid fa-play text-xs"></i>
@@ -549,9 +460,7 @@
               <button onclick="resetTimer()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition" title="Remise à zéro">
                 <i class="fa-solid fa-rotate-right text-sm"></i>
               </button>
-
               <span class="text-slate-600 text-sm hidden sm:inline">|</span>
-
               <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700">
                 <label for="manual-time-input" class="text-xs text-slate-300 font-bold whitespace-nowrap" data-i18n="timer-manual-label">Temps officiel :</label>
                 <input id="manual-time-input" type="text" placeholder="ex: 1:45" 
@@ -559,11 +468,9 @@
                   oninput="updateManualTime(this.value)">
               </div>
             </div>
-
           </div>
         </div>
 
-        <!-- Action / Save and Return -->
         <div class="flex-none pt-2.5 border-t border-slate-800 flex items-center justify-between gap-3">
           <button onclick="saveAndReturnToBoard()" class="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition">
             <i class="fa-solid fa-check-double text-xs"></i>
@@ -573,19 +480,14 @@
             La carte sera marquée comme terminée avec le nom de l'orateur et son temps.
           </span>
         </div>
-
       </div>
     </section>
 
   </main>
 
-  <!-- ============================================================== -->
-  <!-- MODAL : RÈGLES / GUIDELINES                                    -->
-  <!-- ============================================================== -->
+  <!-- ================= MODAL : RÈGLES / GUIDELINES ================= -->
   <div id="modal-rules" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-slate-50 text-slate-900 rounded-3xl max-w-5xl w-full p-6 md:p-8 shadow-2xl border border-slate-300 flex flex-col justify-between max-h-[94vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-      
-      <!-- Header -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>
           <span class="text-xs md:text-sm font-black uppercase tracking-widest text-[#772432]">Toastmasters International • RÈGLES DU JEU</span>
@@ -598,7 +500,6 @@
         </button>
       </div>
 
-      <!-- Introduction Message -->
       <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 my-3 text-sm md:text-base text-amber-950 leading-relaxed shadow-sm">
         <strong class="text-amber-900 text-base md:text-lg block mb-1">🎉 Bienvenue à tous nos membres et tout particulièrement à nos invités !</strong>
         <p>
@@ -606,7 +507,6 @@
         </p>
       </div>
 
-      <!-- 3 Columns -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-5 my-2">
         <div class="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm flex flex-col justify-between">
           <div>
@@ -644,24 +544,19 @@
         </div>
       </div>
 
-      <!-- Footer Button -->
       <div class="pt-3 border-t border-slate-200 flex justify-end">
         <button onclick="closeRulesModal()" class="px-8 py-3 rounded-2xl bg-[#004165] hover:bg-[#002f4a] text-white font-black text-sm md:text-base flex items-center gap-2 transition shadow-lg">
           <span>Prêt ! Revenir au plateau de jeu</span>
           <i class="fa-solid fa-arrow-right"></i>
         </button>
       </div>
-
     </div>
   </div>
 
-  <!-- ============================================================== -->
-  <!-- MODAL : LISTE RÉCAPITULATIVE & GOOGLE FORMS                    -->
-  <!-- ============================================================== -->
+  <!-- ================= MODAL : LISTE RÉCAPITULATIVE & GOOGLE FORMS ================= -->
   <div id="modal-summary" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-[#0b1f36] border-2 border-slate-700 text-slate-100 rounded-3xl max-w-5xl w-full p-6 shadow-2xl flex flex-col justify-between max-h-[94vh] overflow-hidden">
       
-      <!-- Header -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-700">
         <div>
           <h3 class="text-xl md:text-2xl font-black text-white flex items-center gap-3">
@@ -677,7 +572,6 @@
         </button>
       </div>
 
-      <!-- Editable Table -->
       <div class="flex-1 overflow-y-auto my-3 pr-1">
         <table class="w-full text-left text-sm md:text-base text-slate-200 border-collapse">
           <thead class="bg-slate-900/95 text-slate-400 uppercase text-xs font-black sticky top-0 border-b border-slate-700">
@@ -689,13 +583,10 @@
               <th class="py-3 px-3 w-36 text-center">Éligibilité</th>
             </tr>
           </thead>
-          <tbody id="summary-table-body" class="divide-y divide-slate-800">
-            <!-- Dynamically populated in JS -->
-          </tbody>
+          <tbody id="summary-table-body" class="divide-y divide-slate-800"></tbody>
         </table>
       </div>
 
-      <!-- Bottom Bar -->
       <div class="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="flex items-center gap-2 w-full sm:w-auto">
           <button onclick="closeSummaryModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm md:text-base transition w-full sm:w-auto" data-i18n="votes-btn-close">
@@ -718,13 +609,10 @@
     </div>
   </div>
 
-  <!-- ============================================================== -->
-  <!-- MODAL : VOTE EN DIRECT (QR CODE SUR PROJECTEUR / RÉSULTATS CACHÉS) -->
-  <!-- ============================================================== -->
+  <!-- ================= MODAL : VOTE EN DIRECT (QR CODE & RÉSULTATS) ================= -->
   <div id="modal-live-vote" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
     <div class="bg-[#0b1f36] border-2 border-emerald-500/50 text-slate-100 rounded-3xl max-w-4xl w-full p-5 md:p-7 shadow-2xl flex flex-col justify-between max-h-[95vh] overflow-hidden">
       
-      <!-- Header -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-700 flex-none">
         <div>
           <span class="text-xs md:text-sm font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
@@ -735,7 +623,6 @@
           </h2>
         </div>
 
-        <!-- Realtime Live Tally Pill in Header Corner (Safe to show to the room) -->
         <div class="flex items-center gap-3">
           <div class="bg-gradient-to-r from-emerald-950 to-slate-900 border-2 border-emerald-500/70 px-4 py-1.5 rounded-2xl flex items-center gap-3 shadow-lg">
             <div class="text-right">
@@ -753,13 +640,12 @@
         </div>
       </div>
 
-      <!-- MAIN PUBLIC PROJECTOR SCREEN: BIG QR CODE (No spoilers on projector) -->
+      <!-- MAIN PUBLIC PROJECTOR SCREEN: BIG QR CODE -->
       <div id="public-qr-view" class="flex-1 my-3 flex flex-col items-center justify-center text-center p-4 bg-slate-900/80 border border-slate-700/80 rounded-2xl shadow-inner overflow-hidden">
         <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 text-amber-300 text-xs md:text-sm font-black uppercase tracking-wider mb-3 border border-amber-500/40">
           <i class="fa-solid fa-camera"></i> Pointez votre appareil photo sur le QR code
         </span>
 
-        <!-- High-Contrast Big QR Code Display -->
         <div class="p-4 bg-white rounded-3xl shadow-2xl border-4 border-emerald-500/50 inline-flex items-center justify-center">
           <div id="qrcode-container" class="w-[200px] h-[200px] md:w-[240px] md:h-[240px] flex items-center justify-center"></div>
         </div>
@@ -779,7 +665,7 @@
         </div>
       </div>
 
-      <!-- CONFIDENTIAL LEADERBOARD & RESULTS VIEW (Hidden by default for presenter privacy) -->
+      <!-- CONFIDENTIAL LEADERBOARD & RESULTS VIEW -->
       <div id="confidential-results-view" class="hidden flex-1 my-3 bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex-col justify-between overflow-hidden shadow-lg">
         <div class="flex-1 flex flex-col overflow-hidden">
           <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800 flex-none">
@@ -790,12 +676,9 @@
               Non visible par le public tant que vous ne basculez pas sur cet écran
             </span>
           </div>
-
-          <!-- List of Candidates with live progress bars -->
           <div id="live-candidates-list" class="space-y-2.5 overflow-y-auto pr-1 flex-1"></div>
         </div>
 
-        <!-- Winner Reveal Banner -->
         <div id="winner-banner" class="hidden mt-3 bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 border-2 border-amber-400 rounded-2xl p-3.5 text-center animate-in zoom-in-95 flex-none">
           <span class="text-xs font-black uppercase tracking-widest text-amber-400 block mb-0.5">
             🏆 GRAND GAGNANT DE LA SOIRÉE
@@ -811,7 +694,6 @@
 
       <!-- Footer Buttons -->
       <div class="flex-none pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <!-- Presenter-only Toggle to reveal/hide detailed results -->
         <div class="flex items-center gap-2">
           <button id="btn-toggle-results" onclick="toggleResultsView()" class="px-3.5 py-2 rounded-xl bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 hover:text-white text-xs md:text-sm font-black border border-indigo-700/60 transition flex items-center gap-2 shadow">
             <i id="icon-toggle-results" class="fa-solid fa-eye text-amber-400"></i>
@@ -836,18 +718,14 @@
     </div>
   </div>
 
-  <!-- ============================================================== -->
-  <!-- VIEW 3 : ÉCRAN VOTANT MOBILE (POUR LES SMARTPHONES DU PUBLIC)  -->
-  <!-- ============================================================== -->
+  <!-- ================= VIEW 3 : ÉCRAN VOTANT MOBILE ================= -->
   <section id="view-mobile-vote" class="hidden min-h-screen w-full bg-[#071322] text-slate-100 flex flex-col justify-between p-4 font-['Plus_Jakarta_Sans',sans-serif]">
-    <!-- Mobile Header -->
     <div class="text-center py-4 border-b border-slate-800">
       <span class="text-xs font-black uppercase tracking-widest text-amber-400">Toastmasters International</span>
       <h1 class="text-2xl font-black text-white mt-1">Votez pour le meilleur orateur</h1>
       <p id="mobile-theme-display" class="text-xs text-sky-300 mt-0.5">Session d'Improvisations</p>
     </div>
 
-    <!-- Candidate List to vote -->
     <div class="my-auto py-4 max-w-md mx-auto w-full">
       <div id="mobile-has-voted" class="hidden text-center bg-emerald-950/80 border-2 border-emerald-500 rounded-3xl p-6 shadow-2xl">
         <div class="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center text-2xl mx-auto mb-3 shadow-lg">
@@ -873,7 +751,6 @@
       </div>
     </div>
 
-    <!-- Mobile Footer -->
     <div class="text-center py-3 border-t border-slate-800 text-[11px] text-slate-500">
       Table Topics Master • Toastmasters Club
     </div>
@@ -881,7 +758,6 @@
 
   <!-- ================= JAVASCRIPT LOGIC ================= -->
   <script>
-    // --- BILINGUAL DICTIONARY (EN / FR) ---
     const TRANSLATIONS = {
       en: {
         "badge-role": "Table Topics",
@@ -912,7 +788,7 @@
         "cfg-reset-btn": "Reset to Default Topics",
         "cfg-clear-btn": "Clear Speakers",
         "cfg-cancel-btn": "Cancel",
-        "cfg-save-btn": "Save & Lock for Presentation",
+        "cfg-save-btn": "Save to Redis & Lock",
         "rules-title": "How do Table Topics work?",
         "rules-sub": "Toastmasters International • RULES OF THE GAME",
         "rules-banner-title": "🎉 Welcome to our members and especially our guests!",
@@ -944,7 +820,7 @@
         "card-click-reveal": "Click to reveal",
         "card-secret-topic": "Secret Table Topic",
         "card-take-mic": "Take the mic →",
-        "toast-saved": "Topics saved and locked for presentation!",
+        "toast-saved": "Topics saved to Redis Cloud and locked!",
         "toast-reset": "Topics restored to defaults.",
         "toast-cleared": "Session cleared! All cards and speaker records are reset.",
         "toast-copied": "Copied {count} speaker name(s) in order! Paste with Ctrl+V into Google Form."
@@ -978,7 +854,7 @@
         "cfg-reset-btn": "Réinitialiser aux sujets initiaux",
         "cfg-clear-btn": "Vider les orateurs",
         "cfg-cancel-btn": "Annuler",
-        "cfg-save-btn": "Enregistrer & Verrouiller pour la Présentation",
+        "cfg-save-btn": "Enregistrer dans Redis &amp; Verrouiller",
         "rules-title": "Comment se déroulent les improvisations ?",
         "rules-sub": "Toastmasters International • RÈGLES DU JEU",
         "rules-banner-title": "🎉 Bienvenue à tous nos membres et tout particulièrement à nos invités !",
@@ -1010,114 +886,33 @@
         "card-click-reveal": "Cliquer pour révéler",
         "card-secret-topic": "Sujet secret d'impro",
         "card-take-mic": "Prendre la parole →",
-        "toast-saved": "Sujets enregistrés et verrouillés pour la présentation !",
+        "toast-saved": "Sujets enregistrés dans Redis Cloud et verrouillés !",
         "toast-reset": "Sujets réinitialisés avec les contenus initiaux.",
         "toast-cleared": "Séance nettoyée ! Toutes les cartes et orateurs sont remis à zéro.",
         "toast-copied": "{count} orateur(s) copié(s) dans l'ordre ! Collez avec Ctrl+V dans votre formulaire."
       }
     };
 
-    // --- DEFAULT TOPICS FOR BOTH LANGUAGES ---
     const DEFAULT_TOPICS_EN = [
-      {
-        id: 1,
-        category: "The Icebreaker",
-        quote: "“If speech is silver and silence is gold, why are we all gathered here tonight to speak?”",
-        tip: "Share your humorous or philosophical take on our human desire to connect and communicate."
-      },
-      {
-        id: 2,
-        category: "The Story",
-        quote: "“Tell us about a time in your life when you truly should have stayed silent... or conversely, dared to speak up!”",
-        tip: "Share a true story, an awkward moment, a memorable achievement, or a funny twist."
-      },
-      {
-        id: 3,
-        category: "The Creative Challenge",
-        quote: "“Imagine that tomorrow morning, humanity wakes up having completely lost the ability to speak. How would you confess your love to someone?”",
-        tip: "Unleash your imagination: gestures, artistic clues, symbols, or funny workarounds!"
-      },
-      {
-        id: 4,
-        category: "The Debate",
-        quote: "“Do you believe great leaders are born natural speakers, or do they become one through deliberate practice?”",
-        tip: "Take a stand, illustrate with a vivid example, and persuade the audience."
-      },
-      {
-        id: 5,
-        category: "Roleplay",
-        quote: "“You are a lawyer defending the worst student in rhetoric school—someone who does nothing but stammer. Convince the court that this student is a genius.”",
-        tip: "Step into the shoes of the most passionate attorney and turn every flaw into a masterstroke!"
-      },
-      {
-        id: 6,
-        category: "The Inspirational",
-        quote: "“If you had the power to broadcast a single, brief message directly into everyone's head worldwide at once, what would you say?”",
-        tip: "Deliver an authentic, uplifting, and memorable message to humanity."
-      },
-      {
-        id: 7,
-        category: "The Future",
-        quote: "“If artificial intelligence could give speeches for us, what human quality would still be irreplaceable on stage?”",
-        tip: "Highlight emotion, vulnerability, spontaneity, or bodily presence."
-      },
-      {
-        id: 8,
-        category: "The Crossroads",
-        quote: "“What is the best piece of advice you completely ignored, and do you regret it today?”",
-        tip: "Tell an engaging life story with insight and humour."
-      }
+      { id: 1, category: "The Icebreaker", quote: "“If speech is silver and silence is gold, why are we all gathered here tonight to speak?”", tip: "Share your humorous or philosophical take on our human desire to connect and communicate." },
+      { id: 2, category: "The Story", quote: "“Tell us about a time in your life when you truly should have stayed silent... or conversely, dared to speak up!”", tip: "Share a true story, an awkward moment, a memorable achievement, or a funny twist." },
+      { id: 3, category: "The Creative Challenge", quote: "“Imagine that tomorrow morning, humanity wakes up having completely lost the ability to speak. How would you confess your love to someone?”", tip: "Unleash your imagination: gestures, artistic clues, symbols, or funny workarounds!" },
+      { id: 4, category: "The Debate", quote: "“Do you believe great leaders are born natural speakers, or do they become one through deliberate practice?”", tip: "Take a stand, illustrate with a vivid example, and persuade the audience." },
+      { id: 5, category: "Roleplay", quote: "“You are a lawyer defending the worst student in rhetoric school—someone who does nothing but stammer. Convince the court that this student is a genius.”", tip: "Step into the shoes of the most passionate attorney and turn every flaw into a masterstroke!" },
+      { id: 6, category: "The Inspirational", quote: "“If you had the power to broadcast a single, brief message directly into everyone's head worldwide at once, what would you say?”", tip: "Deliver an authentic, uplifting, and memorable message to humanity." },
+      { id: 7, category: "The Future", quote: "“If artificial intelligence could give speeches for us, what human quality would still be irreplaceable on stage?”", tip: "Highlight emotion, vulnerability, spontaneity, or bodily presence." },
+      { id: 8, category: "The Crossroads", quote: "“What is the best piece of advice you completely ignored, and do you regret it today?”", tip: "Tell an engaging life story with insight and humour." }
     ];
 
     const DEFAULT_TOPICS_FR = [
-      {
-        id: 1,
-        category: "L'Icebreaker",
-        quote: "« Si la parole est d'argent et le silence est d'or, pourquoi sommes-nous tous réunis ce soir pour parler ? »",
-        tip: "Partagez votre regard avec humour ou philosophie sur le besoin d'échanger et de s'exprimer."
-      },
-      {
-        id: 2,
-        category: "L'anecdote",
-        quote: "« Racontez-nous un moment de votre vie où vous auriez vraiment dû garder le silence... ou au contraire, oser parler ! »",
-        tip: "Racontez une histoire vécue, insolite, embarrassante ou touchante avec le sens du rebondissement."
-      },
-      {
-        id: 3,
-        category: "Le défi créatif",
-        quote: "« Imaginez que demain matin, l'humanité se réveille privée de la parole. Comment feriez-vous pour déclarer votre flamme à quelqu'un ? »",
-        tip: "Faites appel à votre imagination : mimez, décrivez des symboles, de l'art ou des ruses romantiques !"
-      },
-      {
-        id: 4,
-        category: "Le débat",
-        quote: "« Pensez-vous que les grands leaders naissent bons orateurs, ou le deviennent-ils à force de travail ? »",
-        tip: "Prenez parti avec clarté, citez un exemple marquant et défendez votre point de vue avec conviction."
-      },
-      {
-        id: 5,
-        category: "Le jeu de rôle",
-        quote: "« Vous êtes un avocat et vous devez défendre le pire élève de l'école de rhétorique, celui qui ne fait que bafouiller. Convainquez-nous qu'il a du génie. »",
-        tip: "Glissez-vous dans la robe de l'avocat le plus persuasif et retournez chaque défaut en coup de maître !"
-      },
-      {
-        id: 6,
-        category: "L'inspirant",
-        quote: "« Si vous aviez le pouvoir de faire passer un message unique et court que le monde entier entendrait en même temps dans sa tête, que diriez-vous ? »",
-        tip: "Délivrez un message universel, fort, sincère et percutant qui transcende toutes les frontières."
-      },
-      {
-        id: 7,
-        category: "Le futur",
-        quote: "« Si l'intelligence artificielle pouvait faire des discours à notre place, quelle qualité humaine resterait irremplaçable sur scène ? »",
-        tip: "Mettez en avant l'émotion, la vulnérabilité ou la spontanéité."
-      },
-      {
-        id: 8,
-        category: "Le dilemme",
-        quote: "« Quel est le meilleur conseil que vous ayez totalement ignoré, et le regrettez-vous aujourd'hui ? »",
-        tip: "Partagez une anecdote de vie avec recul et humour."
-      }
+      { id: 1, category: "L'Icebreaker", quote: "« Si la parole est d'argent et le silence est d'or, pourquoi sommes-nous tous réunis ce soir pour parler ? »", tip: "Partagez votre regard avec humour ou philosophie sur le besoin d'échanger et de s'exprimer." },
+      { id: 2, category: "L'anecdote", quote: "« Racontez-nous un moment de votre vie où vous auriez vraiment dû garder le silence... ou au contraire, oser parler ! »", tip: "Racontez une histoire vécue, insolite, embarrassante ou touchante avec le sens du rebondissement." },
+      { id: 3, category: "Le défi créatif", quote: "« Imaginez que demain matin, l'humanité se réveille privée de la parole. Comment feriez-vous pour déclarer votre flamme à quelqu'un ? »", tip: "Faites appel à votre imagination : mimez, décrivez des symboles, de l'art ou des ruses romantiques !" },
+      { id: 4, category: "Le débat", quote: "« Pensez-vous que les grands leaders naissent bons orateurs, ou le deviennent-ils à force de travail ? »", tip: "Prenez parti avec clarté, citez un exemple marquant et défendez votre point de vue avec conviction." },
+      { id: 5, category: "Le jeu de rôle", quote: "« Vous êtes un avocat et vous devez défendre le pire élève de l'école de rhétorique, celui qui ne fait que bafouiller. Convainquez-nous qu'il a du génie. »", tip: "Glissez-vous dans la robe de l'avocat le plus persuasif et retournez chaque défaut en coup de maître !" },
+      { id: 6, category: "L'inspirant", quote: "« Si vous aviez le pouvoir de faire passer un message unique et court que le monde entier entendrait en même temps dans sa tête, que diriez-vous ? »", tip: "Délivrez un message universel, fort, sincère et percutant qui transcende toutes les frontières." },
+      { id: 7, category: "Le futur", quote: "« Si l'intelligence artificielle pouvait faire des discours à notre place, quelle qualité humaine resterait irremplaçable sur scène ? »", tip: "Mettez en avant l'émotion, la vulnérabilité ou la spontanéité." },
+      { id: 8, category: "Le dilemme", quote: "« Quel est le meilleur conseil que vous ayez totalement ignoré, et le regrettez-vous aujourd'hui ? »", tip: "Partagez une anecdote de vie avec recul et humour." }
     ];
 
     let currentLang = 'en';
@@ -1131,10 +926,7 @@
       if (lang !== 'en' && lang !== 'fr') return;
       const prevLang = currentLang;
       currentLang = lang;
-      try {
-        localStorage.setItem(STORAGE_KEY_LANG, lang);
-      } catch (e) {}
-
+      try { localStorage.setItem(STORAGE_KEY_LANG, lang); } catch (e) {}
       updateLanguageButtons();
       applyStaticTranslations();
 
@@ -1214,7 +1006,6 @@
     let totalCardsCount = 6;
     let TOPICS_DATA = buildFreshTopics('en', 6);
 
-    // Storage keys
     const STORAGE_KEY_TOPICS = "tm_table_topics_data_v3";
     const STORAGE_KEY_THEME = "tm_table_topics_theme_v3";
     const STORAGE_KEY_VOTES = "tm_table_topics_votes_v2";
@@ -1222,12 +1013,121 @@
     const STORAGE_KEY_ROUND_ID = "tm_table_topics_round_id";
     const STORAGE_KEY_CARDS_COUNT = "tm_table_topics_cards_count";
 
-    // Fixed default Toastmasters session channel
     const DEFAULT_CLUB_SESSION = "tm_global_club_session";
     let currentSessionId = DEFAULT_CLUB_SESSION;
     let currentRoundId = "1";
     let qrCodeInstance = null;
-    let currentUser = null;
+    let activeUsername = null;
+
+    function openRoomLoginModal() {
+      const err = document.getElementById('room-validation-error');
+      if (err) err.classList.add('hidden');
+      const input = document.getElementById('unique-room-input');
+      if (input) {
+        input.value = activeUsername || '';
+        setTimeout(() => input.focus(), 100);
+      }
+      document.getElementById('modal-auth-help').classList.remove('hidden');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('modal-auth-help').classList.add('hidden');
+    }
+
+    async function handleClaimRoom() {
+      const input = document.getElementById('unique-room-input');
+      const errorMsg = document.getElementById('room-validation-error');
+      const rawName = input ? input.value : "";
+      const room = sanitizeRoomName(rawName);
+
+      if (!room || room.length < 3) {
+        errorMsg.innerText = currentLang === 'en' 
+          ? "Please enter a valid unique name (at least 3 characters)."
+          : "Veuillez entrer un nom unique valide (au moins 3 caractères).";
+        errorMsg.classList.remove('hidden');
+        return;
+      }
+
+      await activateSessionUser(room);
+      closeAuthModal();
+      showToast(currentLang === 'en' 
+        ? `Redis session "${room}" active (7 days auto-expiry)!`
+        : `Session Redis "${room}" synchronisée (7 jours de conservation) !`);
+    }
+
+    async function activateSessionUser(username) {
+      activeUsername = username;
+      currentSessionId = `tm_room_${username}`;
+      localStorage.setItem("tm_current_active_username", username);
+
+      const loginBtn = document.getElementById('btn-login-google');
+      if (loginBtn) loginBtn.classList.add('hidden');
+      const pill = document.getElementById('user-profile-pill');
+      if (pill) {
+        pill.classList.remove('hidden');
+        pill.classList.add('flex');
+      }
+      const displayName = document.getElementById('user-display-name');
+      if (displayName) displayName.innerText = username;
+
+      // 1. Tenter de charger depuis l'API Redis Cloud
+      let cloudData = await fetchRedisSession(username);
+
+      // 2. Si non trouvé dans Redis, vérifier le stockage local
+      if (!cloudData) {
+        cloudData = getLocalRoomVault(username);
+      }
+
+      if (cloudData) {
+        if (cloudData.theme) meetingTheme = cloudData.theme;
+        if (Array.isArray(cloudData.topics) && cloudData.topics.length >= 4) {
+          TOPICS_DATA = cloudData.topics;
+          totalCardsCount = cloudData.topics.length;
+          const selectEl = document.getElementById('card-count-select');
+          if (selectEl) selectEl.value = totalCardsCount.toString();
+        }
+        if (cloudData.votes) votesTally = cloudData.votes;
+        if (cloudData.roundId) currentRoundId = cloudData.roundId;
+      } else {
+        // Nouvelle session : initialisation et sauvegarde dans Redis
+        await saveRedisSession(username, {
+          theme: meetingTheme,
+          topics: TOPICS_DATA,
+          cardsCount: totalCardsCount,
+          votes: {},
+          roundId: getRoundId()
+        });
+      }
+
+      updateThemeInHeader();
+      renderBoard();
+      initMqtt(currentSessionId, true);
+    }
+
+    async function confirmCloseAndSignOut() {
+      const msg = currentLang === 'en'
+        ? `Close session "${activeUsername}"? Your data remains saved in Redis for 7 days. You can access it anytime by re-entering "${activeUsername}".`
+        : `Fermer la session "${activeUsername}" ? Vos données restent conservées dans Redis pendant 7 jours. Vous pourrez les retrouver en retapant "${activeUsername}".`;
+      
+      if (confirm(msg)) {
+        activeUsername = null;
+        localStorage.removeItem("tm_current_active_username");
+        currentSessionId = DEFAULT_CLUB_SESSION;
+
+        const loginBtn = document.getElementById('btn-login-google');
+        if (loginBtn) loginBtn.classList.remove('hidden');
+        const pill = document.getElementById('user-profile-pill');
+        if (pill) {
+          pill.classList.add('hidden');
+          pill.classList.remove('flex');
+        }
+
+        loadSavedData();
+        renderBoard();
+        initMqtt(DEFAULT_CLUB_SESSION, true);
+        showToast(currentLang === 'en' ? "Session closed." : "Session fermée.");
+      }
+    }
 
     function getRoundId() {
       let r = localStorage.getItem(STORAGE_KEY_ROUND_ID);
@@ -1239,119 +1139,10 @@
       return r;
     }
 
-    // MQTT Realtime Broker & Strict Anti-Double Voting State
     let mqttClient = null;
     let votesTally = {};
     let recordedVoterIds = new Set();
     const HAS_VOTED_PREFIX = "tm_has_voted_round_";
-
-    window.handleUserSignedIn = async (user) => {
-      currentUser = user;
-      const loginBtn = document.getElementById('btn-login-google');
-      if (loginBtn) loginBtn.classList.add('hidden');
-      const pill = document.getElementById('user-profile-pill');
-      if (pill) {
-        pill.classList.remove('hidden');
-        pill.classList.add('flex');
-      }
-
-      const nameDisplay = document.getElementById('user-display-name');
-      if (nameDisplay) nameDisplay.innerText = user.displayName || user.email.split('@')[0];
-      const avatar = document.getElementById('user-avatar');
-      if (avatar && user.photoURL) avatar.src = user.photoURL;
-
-      // Unique cloud session linked to the user's permanent ID
-      currentSessionId = 'tm_usr_' + user.uid.substring(0, 14);
-
-      if (window.TM_AUTH && window.TM_AUTH.loadCloudTopics) {
-        const cloudData = await window.TM_AUTH.loadCloudTopics(user.uid);
-        if (cloudData && Array.isArray(cloudData.topics)) {
-          TOPICS_DATA = cloudData.topics;
-          totalCardsCount = cloudData.topics.length || 6;
-          const selectEl = document.getElementById('card-count-select');
-          if (selectEl) selectEl.value = totalCardsCount.toString();
-          if (cloudData.theme) meetingTheme = cloudData.theme;
-          persistData();
-          renderBoard();
-        }
-      }
-
-      showToast(`Signed in as ${user.displayName || user.email}!`);
-      initMqtt(currentSessionId, true);
-    };
-
-    window.handleUserSignedOut = () => {
-      currentUser = null;
-      const loginBtn = document.getElementById('btn-login-google');
-      if (loginBtn) loginBtn.classList.remove('hidden');
-      const pill = document.getElementById('user-profile-pill');
-      if (pill) {
-        pill.classList.add('hidden');
-        pill.classList.remove('flex');
-      }
-
-      currentSessionId = DEFAULT_CLUB_SESSION;
-      showToast("Signed out. Using default open workspace.");
-      initMqtt(currentSessionId, true);
-    };
-
-    window.openAuthSetupModal = () => {
-      document.getElementById('auth-modal-title').innerHTML = '<i class="fa-solid fa-user-lock mr-2 text-amber-400"></i> Sign In to Workspace';
-      document.getElementById('auth-modal-message').innerHTML = `
-        <p class="mb-2 font-semibold text-white">To link your sessions and generate your permanent static QR code:</p>
-        <ul class="list-disc pl-4 space-y-1 text-slate-300 text-xs">
-          <li>Enter your <b>Email</b> or <b>Club Name</b> below for instant workspace isolation.</li>
-          <li>Your slide deck QR code will remain completely static and isolated from other clubs.</li>
-        </ul>
-      `;
-      document.getElementById('modal-auth-help').classList.remove('hidden');
-    };
-
-    window.showAuthErrorModal = (title, htmlBody) => {
-      document.getElementById('auth-modal-title').innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-2 text-rose-400"></i> ' + title;
-      document.getElementById('auth-modal-message').innerHTML = htmlBody;
-      document.getElementById('modal-auth-help').classList.remove('hidden');
-    };
-
-    window.closeAuthModal = () => {
-      document.getElementById('modal-auth-help').classList.add('hidden');
-    };
-
-    window.saveQuickEmailProfile = () => {
-      const emailInput = document.getElementById('quick-email-input');
-      const email = emailInput ? emailInput.value.trim() : "";
-      if (!email || !email.includes('@')) {
-        alert("Please enter a valid email address.");
-        return;
-      }
-      const safeUid = btoa(email.toLowerCase()).replace(/=/g, '').substring(0, 16);
-      const userObj = {
-        uid: safeUid,
-        email: email,
-        displayName: email.split('@')[0],
-        photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email.split('@')[0])}`
-      };
-      localStorage.setItem("tm_custom_profile_user", JSON.stringify(userObj));
-      window.handleUserSignedIn(userObj);
-      closeAuthModal();
-    };
-
-    window.saveCustomFirebaseConfig = () => {
-      const input = document.getElementById('firebase-config-input');
-      const raw = input ? input.value.trim() : "";
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed.apiKey && parsed.authDomain) {
-          localStorage.setItem("tm_custom_firebase_config", JSON.stringify(parsed));
-          alert("Firebase credentials saved! Reloading application...");
-          window.location.reload();
-        } else {
-          alert("Invalid config. Must include apiKey and authDomain.");
-        }
-      } catch (e) {
-        alert("Invalid JSON format. Please verify the copied snippet.");
-      }
-    };
 
     function changeCardsCount(newCount) {
       if (newCount < 4 || newCount > 8) return;
@@ -1431,20 +1222,12 @@
               if (topic.endsWith('/vote')) {
                 const msg = JSON.parse(payload.toString());
                 if (msg && msg.speaker) {
-                  if (msg.roundId && msg.roundId !== currentRoundId) {
-                    console.warn("Ignored vote from deprecated round:", msg.roundId);
-                    return;
-                  }
+                  if (msg.roundId && msg.roundId !== currentRoundId) return;
 
                   const voterId = msg.voterId || null;
-                  if (voterId && recordedVoterIds.has(voterId)) {
-                    console.warn("Ignored duplicate vote from voter:", voterId);
-                    return;
-                  }
+                  if (voterId && recordedVoterIds.has(voterId)) return;
 
-                  if (voterId) {
-                    recordedVoterIds.add(voterId);
-                  }
+                  if (voterId) recordedVoterIds.add(voterId);
 
                   votesTally[msg.speaker] = (votesTally[msg.speaker] || 0) + 1;
                   saveVotes();
@@ -1464,10 +1247,16 @@
 
     function loadSavedVotes() {
       try {
-        const saved = localStorage.getItem(STORAGE_KEY_VOTES);
-        votesTally = saved ? JSON.parse(saved) : {};
-        const savedVoters = localStorage.getItem(STORAGE_KEY_VOTERS);
-        recordedVoterIds = savedVoters ? new Set(JSON.parse(savedVoters)) : new Set();
+        if (activeUsername) {
+          const vault = getLocalRoomVault(activeUsername);
+          votesTally = (vault && vault.votes) ? vault.votes : {};
+          recordedVoterIds = new Set((vault && vault.voterIds) ? vault.voterIds : []);
+        } else {
+          const saved = localStorage.getItem(STORAGE_KEY_VOTES);
+          votesTally = saved ? JSON.parse(saved) : {};
+          const savedVoters = localStorage.getItem(STORAGE_KEY_VOTERS);
+          recordedVoterIds = savedVoters ? new Set(JSON.parse(savedVoters)) : new Set();
+        }
       } catch (e) {
         votesTally = {};
         recordedVoterIds = new Set();
@@ -1476,8 +1265,19 @@
 
     function saveVotes() {
       try {
-        localStorage.setItem(STORAGE_KEY_VOTES, JSON.stringify(votesTally));
-        localStorage.setItem(STORAGE_KEY_VOTERS, JSON.stringify(Array.from(recordedVoterIds)));
+        if (activeUsername) {
+          saveRedisSession(activeUsername, {
+            theme: meetingTheme,
+            topics: TOPICS_DATA,
+            cardsCount: totalCardsCount,
+            votes: votesTally,
+            voterIds: Array.from(recordedVoterIds),
+            roundId: currentRoundId
+          });
+        } else {
+          localStorage.setItem(STORAGE_KEY_VOTES, JSON.stringify(votesTally));
+          localStorage.setItem(STORAGE_KEY_VOTERS, JSON.stringify(Array.from(recordedVoterIds)));
+        }
       } catch (e) {}
     }
 
@@ -1488,8 +1288,8 @@
     function getVotingUrl() {
       const origin = window.location.origin;
       const pathname = window.location.pathname;
-      const userParam = currentUser ? `&user=${encodeURIComponent(currentUser.uid)}` : '';
-      return `${origin}${pathname}?vote=true&session=${encodeURIComponent(currentSessionId)}${userParam}&round=${encodeURIComponent(currentRoundId)}`;
+      const roomParam = activeUsername ? `&session=${encodeURIComponent(currentSessionId)}` : `&session=${encodeURIComponent(DEFAULT_CLUB_SESSION)}`;
+      return `${origin}${pathname}?vote=true${roomParam}&round=${encodeURIComponent(currentRoundId)}`;
     }
 
     function generateQrCode() {
@@ -1521,7 +1321,6 @@
       });
     }
 
-    // --- LIVE VOTING SCREEN (PRESENTER SCREEN WITH DEDICATED QR & CONFIDENTIAL RESULTS) ---
     let isResultsViewActive = false;
 
     function openLiveVotingModal() {
@@ -1894,16 +1693,18 @@
         localStorage.setItem(STORAGE_KEY_THEME, meetingTheme);
         localStorage.setItem(STORAGE_KEY_TOPICS, JSON.stringify(TOPICS_DATA));
         localStorage.setItem(STORAGE_KEY_CARDS_COUNT, totalCardsCount.toString());
+
+        if (activeUsername) {
+          saveRedisSession(activeUsername, {
+            theme: meetingTheme,
+            topics: TOPICS_DATA,
+            cardsCount: totalCardsCount,
+            votes: votesTally,
+            roundId: currentRoundId
+          });
+        }
       } catch (err) {
         console.warn("Storage save error:", err);
-      }
-
-      if (currentUser && window.TM_AUTH && window.TM_AUTH.saveCloudTopics) {
-        window.TM_AUTH.saveCloudTopics(currentUser.uid, {
-          theme: meetingTheme,
-          topics: TOPICS_DATA,
-          userEmail: currentUser.email
-        });
       }
 
       broadcastSpeakersToPhones();
@@ -2142,7 +1943,6 @@
       grid.innerHTML = '';
       let doneCount = 0;
 
-      // Adapt grid layout depending on cards count (4: 2x2, 5/6: 3x2, 7/8: 4x2)
       if (totalCardsCount === 4) {
         grid.className = "flex-1 grid grid-cols-2 grid-rows-2 gap-4 my-1";
       } else if (totalCardsCount === 5 || totalCardsCount === 6) {
@@ -2559,11 +2359,17 @@
       }, 3500);
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       const isMobile = checkMobileMode();
       if (isMobile) return;
 
-      loadSavedData();
+      const savedUser = localStorage.getItem("tm_current_active_username");
+      if (savedUser) {
+        await activateSessionUser(savedUser);
+      } else {
+        loadSavedData();
+      }
+
       const maxOrder = Math.max(0, ...TOPICS_DATA.map(t => t.order || 0));
       passageCounter = maxOrder;
 
