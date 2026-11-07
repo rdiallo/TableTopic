@@ -16,6 +16,9 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
+  <!-- Google Identity Services for standard Web OAuth fallback -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <!-- Firebase SDK for Google Authentication & Cloud Sync -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -33,46 +36,70 @@
       setDoc 
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Dynamic config injection with graceful offline fallback
-    const firebaseConfig = typeof __firebase_config !== 'undefined' 
-      ? JSON.parse(__firebase_config) 
-      : {
-          apiKey: "AIzaSyDummyKeyForFallbackOnly",
-          authDomain: "toastmasters-table-topics.firebaseapp.com",
-          projectId: "toastmasters-table-topics",
-          storageBucket: "toastmasters-table-topics.appspot.com",
-          messagingSenderId: "123456789",
-          appId: "1:123456789:web:abcdef"
-        };
-
-    let app, auth, db;
+    // Read saved custom firebase config if user configured one, or default runtime
+    let localCustomFirebase = null;
     try {
-      app = initializeApp(firebaseConfig);
-      auth = getAuth(app);
-      db = getFirestore(app);
-    } catch (e) {
-      console.warn("Firebase initialization deferred:", e);
+      const storedConfig = localStorage.getItem("tm_custom_firebase_config");
+      if (storedConfig) {
+        localCustomFirebase = JSON.parse(storedConfig);
+      }
+    } catch (e) {}
+
+    const firebaseConfig = localCustomFirebase || (typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : null);
+
+    let app = null, auth = null, db = null;
+    if (firebaseConfig && firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("Dummy")) {
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+      } catch (e) {
+        console.warn("Firebase initialization error:", e);
+      }
     }
 
-    // Expose Firebase tools to the global window for user actions
+    // Expose Firebase & Auth tools to the global window
     window.TM_AUTH = {
+      isConfigured: () => !!(auth && firebaseConfig),
       loginWithGoogle: async () => {
-        if (!auth) {
-          alert("Google Sign-In is configuring. You can continue using the public mode freely!");
-          return;
+        // If Firebase is configured with active keys
+        if (auth) {
+          try {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+            const result = await signInWithPopup(auth, provider);
+            window.handleUserSignedIn(result.user);
+            return;
+          } catch (err) {
+            console.error("Firebase Auth Error:", err);
+            // Handle specific Google/Firebase error codes clearly
+            if (err.code === 'auth/unauthorized-domain') {
+              window.showAuthErrorModal("Authorized Domain Missing", 
+                `Your current domain (<b>${window.location.hostname}</b>) is not authorized in Firebase Console.<br><br>Go to <b>Firebase Console > Authentication > Settings > Authorized domains</b> and add <code>${window.location.hostname}</code>.`);
+              return;
+            } else if (err.code === 'auth/popup-blocked') {
+              window.showToast("Popup was blocked by your browser. Please allow popups for this site.");
+              return;
+            } else if (err.code === 'auth/popup-closed-by-user') {
+              window.showToast("Sign-in cancelled.");
+              return;
+            } else {
+              window.showAuthErrorModal("Sign-in Error (" + (err.code || "unknown") + ")", err.message);
+              return;
+            }
+          }
         }
-        try {
-          const provider = new GoogleAuthProvider();
-          const result = await signInWithPopup(auth, provider);
-          window.handleUserSignedIn(result.user);
-        } catch (err) {
-          console.warn("Google Sign-In cancelled or error:", err);
-          window.showToast("Sign-in cancelled or popup closed.");
-        }
+
+        // Fallback: Prompt user to set their credentials or use simple club email profile
+        window.openAuthSetupModal();
       },
       logout: async () => {
-        if (!auth) return;
-        await signOut(auth);
+        if (auth) {
+          try { await signOut(auth); } catch (e) {}
+        }
+        localStorage.removeItem("tm_custom_profile_user");
         window.handleUserSignedOut();
       },
       saveCloudTopics: async (userId, data) => {
@@ -104,9 +131,25 @@
         if (user) {
           window.handleUserSignedIn(user);
         } else {
-          window.handleUserSignedOut();
+          // Check local custom profile fallback
+          const localProfile = localStorage.getItem("tm_custom_profile_user");
+          if (localProfile) {
+            try {
+              window.handleUserSignedIn(JSON.parse(localProfile));
+            } catch (e) {}
+          }
         }
       });
+    } else {
+      // Check if user previously logged in via email profile
+      setTimeout(() => {
+        const localProfile = localStorage.getItem("tm_custom_profile_user");
+        if (localProfile) {
+          try {
+            window.handleUserSignedIn(JSON.parse(localProfile));
+          } catch (e) {}
+        }
+      }, 300);
     }
   </script>
 
@@ -245,6 +288,65 @@
   <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-emerald-600 text-white px-6 py-3 rounded-2xl text-base font-black shadow-2xl flex items-center gap-3 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-10px]">
     <i class="fa-solid fa-circle-check text-xl"></i>
     <span id="toast-msg">Notification</span>
+  </div>
+
+  <!-- ================= AUTH CONFIG / ERROR MODAL ================= -->
+  <div id="modal-auth-help" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-[#0b1f36] border-2 border-amber-500/60 text-slate-100 rounded-3xl max-w-xl w-full p-6 shadow-2xl flex flex-col justify-between max-h-[90vh] overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+        <h3 id="auth-modal-title" class="text-xl font-black text-amber-300 flex items-center gap-2">
+          <i class="fa-solid fa-user-shield"></i> Sign In Setup
+        </h3>
+        <button onclick="closeAuthModal()" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="my-4 space-y-4 overflow-y-auto text-sm text-slate-300 pr-1">
+        <div id="auth-modal-message" class="bg-slate-900 border border-slate-700 rounded-2xl p-4 text-xs md:text-sm leading-relaxed">
+          Sign in links your custom table topics and voting URL directly to your name/email so no other club interferes with your sessions.
+        </div>
+
+        <!-- Quick 1-click Email profile without needing Google Cloud project -->
+        <div class="bg-indigo-950/50 border border-indigo-700/60 rounded-2xl p-4">
+          <label class="font-bold text-amber-300 block mb-1 text-xs uppercase tracking-wider">
+            Quick Sign-In with Email / Presenter Name :
+          </label>
+          <div class="flex gap-2 mt-2">
+            <input id="quick-email-input" type="email" placeholder="e.g. john.doe@gmail.com" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-400">
+            <button onclick="saveQuickEmailProfile()" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs md:text-sm transition">
+              Use Account
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2">
+            Instantly generates your permanent workspace: <code class="text-sky-300 font-mono">?session=tm_usr_...</code> for static slide decks.
+          </p>
+        </div>
+
+        <!-- Optional: Paste Firebase Config -->
+        <details class="bg-slate-900 border border-slate-800 rounded-2xl p-3 cursor-pointer">
+          <summary class="font-bold text-xs text-slate-400 hover:text-white flex items-center justify-between">
+            <span>⚙️ Advanced: Use Custom Firebase Credentials</span>
+            <i class="fa-solid fa-chevron-down text-xs"></i>
+          </summary>
+          <div class="mt-3 space-y-2">
+            <p class="text-[11px] text-slate-400">
+              Paste your Firebase Web configuration JSON below to enable automatic Google OAuth Popup and cloud Firestore database saving:
+            </p>
+            <textarea id="firebase-config-input" rows="4" placeholder='{"apiKey": "AIza...", "authDomain": "...", "projectId": "..."}' class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs font-mono text-emerald-300 focus:outline-none focus:border-amber-400"></textarea>
+            <button onclick="saveCustomFirebaseConfig()" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white border border-slate-600">
+              Save Firebase Config & Reload
+            </button>
+          </div>
+        </details>
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-end">
+        <button onclick="closeAuthModal()" class="px-5 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs">
+          Close
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- ============================================================== -->
@@ -1191,6 +1293,64 @@
       currentSessionId = DEFAULT_CLUB_SESSION;
       showToast("Signed out. Using default open workspace.");
       initMqtt(currentSessionId, true);
+    };
+
+    window.openAuthSetupModal = () => {
+      document.getElementById('auth-modal-title').innerHTML = '<i class="fa-solid fa-user-lock mr-2 text-amber-400"></i> Sign In to Workspace';
+      document.getElementById('auth-modal-message').innerHTML = `
+        <p class="mb-2 font-semibold text-white">To link your sessions and generate your permanent static QR code:</p>
+        <ul class="list-disc pl-4 space-y-1 text-slate-300 text-xs">
+          <li>Enter your <b>Email</b> or <b>Club Name</b> below for instant workspace isolation.</li>
+          <li>Your slide deck QR code will remain completely static and isolated from other clubs.</li>
+        </ul>
+      `;
+      document.getElementById('modal-auth-help').classList.remove('hidden');
+    };
+
+    window.showAuthErrorModal = (title, htmlBody) => {
+      document.getElementById('auth-modal-title').innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-2 text-rose-400"></i> ' + title;
+      document.getElementById('auth-modal-message').innerHTML = htmlBody;
+      document.getElementById('modal-auth-help').classList.remove('hidden');
+    };
+
+    window.closeAuthModal = () => {
+      document.getElementById('modal-auth-help').classList.add('hidden');
+    };
+
+    window.saveQuickEmailProfile = () => {
+      const emailInput = document.getElementById('quick-email-input');
+      const email = emailInput ? emailInput.value.trim() : "";
+      if (!email || !email.includes('@')) {
+        alert("Please enter a valid email address.");
+        return;
+      }
+      const safeUid = btoa(email.toLowerCase()).replace(/=/g, '').substring(0, 16);
+      const userObj = {
+        uid: safeUid,
+        email: email,
+        displayName: email.split('@')[0],
+        photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email.split('@')[0])}`
+      };
+      localStorage.setItem("tm_custom_profile_user", JSON.stringify(userObj));
+      window.handleUserSignedIn(userObj);
+      closeAuthModal();
+    };
+
+    window.saveCustomFirebaseConfig = () => {
+      const input = document.getElementById('firebase-config-input');
+      const raw = input ? input.value.trim() : "";
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.apiKey && parsed.authDomain) {
+          localStorage.setItem("tm_custom_firebase_config", JSON.stringify(parsed));
+          alert("Firebase credentials saved! Reloading application...");
+          window.location.reload();
+        } else {
+          alert("Invalid config. Must include apiKey and authDomain.");
+        }
+      } catch (e) {
+        alert("Invalid JSON format. Please verify the copied snippet.");
+      }
     };
 
     function changeCardsCount(newCount) {
