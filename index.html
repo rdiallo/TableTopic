@@ -33,6 +33,15 @@
       animation: pulseSoft 1s infinite ease-in-out;
     }
 
+    @keyframes votePing {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.18); color: #34d399; }
+      100% { transform: scale(1); }
+    }
+    .vote-ping {
+      animation: votePing 0.4s ease-out;
+    }
+
     /* Fluid typography tuned for projectors & room reading without overflow */
     .quote-fluid {
       font-size: clamp(1.4rem, 2.3vw, 2.5rem);
@@ -504,9 +513,23 @@
             Votez pour la Meilleure Improvisation !
           </h2>
         </div>
-        <button onclick="closeLiveVotingModal()" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+
+        <!-- Realtime Live Tally Pill in Header Corner -->
+        <div class="flex items-center gap-3">
+          <div class="bg-gradient-to-r from-emerald-950 to-slate-900 border-2 border-emerald-500/70 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-lg">
+            <div class="text-right">
+              <span class="text-[10px] uppercase font-black tracking-wider text-emerald-400 block leading-none">Total Votants</span>
+              <span class="text-xs text-slate-400 font-semibold">1 personne = 1 vote</span>
+            </div>
+            <div id="header-total-votes" class="font-mono text-3xl font-black text-emerald-300 bg-emerald-900/80 px-3 py-0.5 rounded-xl border border-emerald-600/50 shadow-inner">
+              0
+            </div>
+          </div>
+
+          <button onclick="closeLiveVotingModal()" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Main Split View: Left (QR Code) / Right (Live Tally) -->
@@ -597,17 +620,22 @@
         <div class="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center text-2xl mx-auto mb-3 shadow-lg">
           <i class="fa-solid fa-check"></i>
         </div>
-        <h2 class="text-2xl font-black text-white mb-1">Vote enregistré !</h2>
-        <p class="text-sm text-emerald-200">Merci pour votre participation. Les résultats s'affichent sur l'écran de la salle en direct.</p>
-        <button onclick="allowVoteChange()" class="mt-4 px-4 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-slate-700">
-          Changer mon vote
-        </button>
+        <h2 class="text-2xl font-black text-white mb-1">Vote validé et définitif !</h2>
+        <p class="text-sm text-emerald-200">Votre bulletin unique a bien été comptabilisé sur l'écran en salle.</p>
+        <p class="text-xs text-slate-400 mt-3 border-t border-emerald-900/60 pt-2 font-mono">
+          Candidat choisi : <span id="mobile-selected-candidate" class="text-amber-300 font-bold">-</span>
+        </p>
       </div>
 
       <div id="mobile-voting-form" class="space-y-3">
-        <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 text-center">
-          Choisissez l'orateur de votre choix :
-        </p>
+        <div class="flex items-center justify-between px-1 mb-2">
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Choisissez l'orateur de votre choix :
+          </p>
+          <span class="text-[11px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+            1 seul vote par personne
+          </span>
+        </div>
         <div id="mobile-candidates-container" class="space-y-2.5"></div>
       </div>
     </div>
@@ -924,7 +952,8 @@
     // Persistent storage keys
     const STORAGE_KEY_TOPICS = "tm_table_topics_data_v3";
     const STORAGE_KEY_THEME = "tm_table_topics_theme_v3";
-    const STORAGE_KEY_VOTES = "tm_table_topics_votes_v1";
+    const STORAGE_KEY_VOTES = "tm_table_topics_votes_v2";
+    const STORAGE_KEY_VOTERS = "tm_table_topics_voters_list_v2";
     const STORAGE_KEY_SESSION_ID = "tm_table_topics_session_id";
 
     // Realtime Room & Session ID
@@ -938,9 +967,10 @@
       return id;
     }
 
-    // MQTT Realtime Broker
+    // MQTT Realtime Broker & Strict Anti-Double Voting State
     let mqttClient = null;
     let votesTally = {};
+    let recordedVoterIds = new Set();
     const HAS_VOTED_KEY = "tm_has_voted_session";
 
     function initMqtt(sessionId, isPresenter = false) {
@@ -964,9 +994,20 @@
             try {
               const msg = JSON.parse(payload.toString());
               if (msg && msg.speaker) {
+                // Strict anti-double voting check: ensure voterId was not already processed
+                const voterId = msg.voterId || (msg.deviceFingerprint || null);
+                if (voterId && recordedVoterIds.has(voterId)) {
+                  console.warn("Ignored duplicate vote from voter:", voterId);
+                  return;
+                }
+
+                if (voterId) {
+                  recordedVoterIds.add(voterId);
+                }
+
                 votesTally[msg.speaker] = (votesTally[msg.speaker] || 0) + 1;
                 saveVotes();
-                renderLiveResults();
+                renderLiveResults(true); // trigger pulse animation on corner counter
                 playTone(550, 'sine', 0.15);
               }
             } catch (e) {
@@ -983,14 +1024,18 @@
       try {
         const saved = localStorage.getItem(STORAGE_KEY_VOTES);
         votesTally = saved ? JSON.parse(saved) : {};
+        const savedVoters = localStorage.getItem(STORAGE_KEY_VOTERS);
+        recordedVoterIds = savedVoters ? new Set(JSON.parse(savedVoters)) : new Set();
       } catch (e) {
         votesTally = {};
+        recordedVoterIds = new Set();
       }
     }
 
     function saveVotes() {
       try {
         localStorage.setItem(STORAGE_KEY_VOTES, JSON.stringify(votesTally));
+        localStorage.setItem(STORAGE_KEY_VOTERS, JSON.stringify(Array.from(recordedVoterIds)));
       } catch (e) {}
     }
 
@@ -1039,13 +1084,25 @@
       });
     }
 
-    function renderLiveResults() {
+    function renderLiveResults(triggerPing = false) {
       const container = document.getElementById('live-candidates-list');
       container.innerHTML = '';
 
       const candidates = getEligibleSpeakers();
       const totalVotes = Object.values(votesTally).reduce((a, b) => a + b, 0);
-      document.getElementById('total-votes-badge').innerText = totalVotes;
+
+      // Update both tally counters
+      const badge = document.getElementById('total-votes-badge');
+      const headerTally = document.getElementById('header-total-votes');
+      if (badge) badge.innerText = totalVotes;
+      if (headerTally) {
+        headerTally.innerText = totalVotes;
+        if (triggerPing) {
+          headerTally.classList.remove('vote-ping');
+          void headerTally.offsetWidth; // trigger reflow
+          headerTally.classList.add('vote-ping');
+        }
+      }
 
       if (candidates.length === 0) {
         container.innerHTML = `
@@ -1086,15 +1143,18 @@
         return;
       }
       const randomCand = candidates[Math.floor(Math.random() * candidates.length)].speaker.trim();
+      const mockVoterId = 'demo_' + Math.random().toString(36).substring(2, 9);
+      recordedVoterIds.add(mockVoterId);
       votesTally[randomCand] = (votesTally[randomCand] || 0) + 1;
       saveVotes();
-      renderLiveResults();
+      renderLiveResults(true);
       playTone(520, 'sine', 0.1);
     }
 
     function resetAllVotes() {
       if (confirm(currentLang === 'en' ? "Reset all recorded votes?" : "Remettre à zéro tous les votes enregistrés ?")) {
         votesTally = {};
+        recordedVoterIds.clear();
         saveVotes();
         renderLiveResults();
         document.getElementById('winner-banner').classList.add('hidden');
@@ -1141,6 +1201,15 @@
     let mobileSpeakersList = [];
     let mobileSessionId = "";
 
+    function getDeviceVoterId() {
+      let vid = localStorage.getItem('tm_persistent_voter_id');
+      if (!vid) {
+        vid = 'v_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
+        localStorage.setItem('tm_persistent_voter_id', vid);
+      }
+      return vid;
+    }
+
     function checkMobileMode() {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('vote') === 'true') {
@@ -1175,8 +1244,9 @@
       const container = document.getElementById('mobile-candidates-container');
       container.innerHTML = '';
 
-      const hasVoted = localStorage.getItem(HAS_VOTED_KEY + '_' + mobileSessionId);
-      if (hasVoted) {
+      const prevVoted = localStorage.getItem(HAS_VOTED_KEY + '_' + mobileSessionId);
+      if (prevVoted) {
+        document.getElementById('mobile-selected-candidate').innerText = prevVoted;
         document.getElementById('mobile-has-voted').classList.remove('hidden');
         document.getElementById('mobile-voting-form').classList.add('hidden');
         return;
@@ -1213,18 +1283,27 @@
     }
 
     function submitMobileVote(speakerName) {
-      if (mqttClient && mqttClient.connected) {
-        mqttClient.publish(`toastmasters/session/${mobileSessionId}/vote`, JSON.stringify({ speaker: speakerName }));
+      // Prevent double submission on device
+      const prevVoted = localStorage.getItem(HAS_VOTED_KEY + '_' + mobileSessionId);
+      if (prevVoted) {
+        alert("Vous avez déjà voté pour cette session !");
+        return;
       }
+
+      const voterId = getDeviceVoterId();
+
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(`toastmasters/session/${mobileSessionId}/vote`, JSON.stringify({ 
+          speaker: speakerName,
+          voterId: voterId
+        }));
+      }
+
       localStorage.setItem(HAS_VOTED_KEY + '_' + mobileSessionId, speakerName);
 
+      document.getElementById('mobile-selected-candidate').innerText = speakerName;
       document.getElementById('mobile-has-voted').classList.remove('hidden');
       document.getElementById('mobile-voting-form').classList.add('hidden');
-    }
-
-    function allowVoteChange() {
-      localStorage.removeItem(HAS_VOTED_KEY + '_' + mobileSessionId);
-      setupMobileVotingView();
     }
 
     function loadSavedData() {
@@ -1457,6 +1536,7 @@
       });
       passageCounter = 0;
       votesTally = {};
+      recordedVoterIds.clear();
       saveVotes();
       persistData();
       renderBoard();
